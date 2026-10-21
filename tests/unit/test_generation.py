@@ -516,3 +516,14 @@ def test_trunk_stub_density_default_off_and_dead_gradient():
     dead = np.array([a.dead for a in l1])
     lower, upper = dead[z < hb + 0.4 * (55 - hb)].mean(), dead[z >= hb + 0.6 * (55 - hb)].mean()
     assert lower > upper, (lower, upper)
+
+
+def test_giant_cedar_branch_and_leaf_balance():
+    """枝に対して葉が多すぎると、少ない枝の先に大きな房が付いて見える。HERO では細い枝（L2・L3）を十分に分岐させ、
+    1 本の枝あたりの葉の数を抑える（旧: L2 964・L3 2433 本に約 43 万枚で 1 本あたり約 126 枚）。"""
+    t = gen("sugi_giant", quality="HERO")
+    ax = [a for a in t.skeleton.axes if not a.removed]
+    n2, n3 = (sum(1 for a in ax if a.level == lv) for lv in (2, 3))
+    assert n2 >= 2500 and n3 >= 3500, (n2, n3)
+    assert t.leaves.is_leaf.sum() / (n2 + n3) <= 80.0
+    assert t.mesh.tri_count <= 1_200_000                                 # 仕様の予算のまま

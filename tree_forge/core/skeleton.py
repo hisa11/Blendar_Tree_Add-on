@@ -331,24 +331,29 @@ def fit_dimensions(p, sk: Skeleton, lo=0.6, hi=1.6) -> None:
 def clip_to_envelope(p, sk: Skeleton, tol: float = 1.0) -> None:
     """エンベロープ（×tol）の外へ出た最初の節で枝を切る。幹・幹分かれの主枝は対象外。"""
     cm = sk.children_map()
-    for a in sk.axes:
-        if a.removed or a.level == 0:
-            continue
-        P = a.pos
-        rho = np.hypot(P[:, 0], P[:, 1])
-        gap = rho - envelope.reach(p, P[:, 2]) * tol          # 正ならエンベロープの外
-        out = gap > 1e-9
-        out[0] = False
-        if out.any():
-            m = int(out.argmax())
-            if m < 2:
-                sk.remove_subtree(a.id, cm)
+    axes = [a for a in sk.axes if not a.removed and a.level != 0]
+    if axes:
+        # 枝ごとの切り詰めは他の枝の節の位置を動かさないので、全節のエンベロープ超過を最初に一括で求めてよい
+        P_all = np.concatenate([a.pos for a in axes])
+        gap_all = np.hypot(P_all[:, 0], P_all[:, 1]) - envelope.reach(p, P_all[:, 2]) * tol      # 正ならエンベロープの外
+        offs = np.concatenate([[0], np.cumsum([a.n for a in axes])])
+        for a, o0, o1 in zip(axes, offs[:-1], offs[1:]):
+            if a.removed:                       # 先に処理した親の切り詰めで子ごと消えた
                 continue
-            # 外へ出る区間は境界との交点で切り、枝先が境界まで届くようにする
-            f = gap[m - 1] / (gap[m - 1] - gap[m])
-            f = float(np.clip(f, 0.0, 1.0)) if np.isfinite(f) else 0.0
-            tip = (P[m - 1] + (P[m] - P[m - 1]) * f)[None, :] if f > 0.25 else None
-            sk.truncate(a, m, cm, tip)
+            P = a.pos
+            gap = gap_all[o0:o1]
+            out = gap > 1e-9
+            out[0] = False
+            if out.any():
+                m = int(out.argmax())
+                if m < 2:
+                    sk.remove_subtree(a.id, cm)
+                    continue
+                # 外へ出る区間は境界との交点で切り、枝先が境界まで届くようにする
+                f = gap[m - 1] / (gap[m - 1] - gap[m])
+                f = float(np.clip(f, 0.0, 1.0)) if np.isfinite(f) else 0.0
+                tip = (P[m - 1] + (P[m] - P[m - 1]) * f)[None, :] if f > 0.25 else None
+                sk.truncate(a, m, cm, tip)
     sk.compact()
 
 
