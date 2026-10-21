@@ -267,15 +267,16 @@ def ground():
     both = m.n("ShaderNodeMath", operation="ADD", y=100)
     m.link(mid.outputs["Fac"], both.inputs[0])
     m.link(big.outputs["Fac"], both.inputs[1])
-    avg = m.n("ShaderNodeMath", operation="MULTIPLY", y=100)
+    avg = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=100)           # 平均 → 0.5 まわりに 2.4 倍へ引き伸ばす
     m.link(both.outputs["Value"], avg.inputs[0])
-    set_in(avg, 1, 0.5)
+    set_in(avg, 1, 1.2)
+    set_in(avg, 2, -0.7)
     fine = noise(m, 18.0, 4.0, 0.5, pos, y=-200)
     # 苔 / スギの落ち葉の茶 / 暗い土。Noise の Fac は 0.35〜0.65 に集中するので境目はその中に置く。
     # 緑と茶で輝度差を付ける。砂利（参道）より約 20% 暗く保ち、参道を一番明るい導線にする
     k = 1.4
-    cs = [(0.0, (0.05, 0.11, 0.02)), (0.30, (0.05, 0.11, 0.02)), (0.46, (0.20, 0.11, 0.05)),
-          (0.60, (0.07, 0.045, 0.03)), (1.0, (0.07, 0.045, 0.03))]
+    cs = [(0.0, (0.05, 0.11, 0.02)), (0.45, (0.05, 0.11, 0.02)), (0.58, (0.14, 0.10, 0.055)),
+          (0.78, (0.07, 0.045, 0.03)), (1.0, (0.07, 0.045, 0.03))]          # 苔が約半分、落ち葉の茶が約 3 割、土が約 1 割
     col = ramp(m, [(pos_, tuple(k * c for c in rgb)) for pos_, rgb in cs], avg.outputs["Value"], y=200)
     b = m.principled(rough=0.95, spec=0.0)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
@@ -534,9 +535,10 @@ def build_hero_marks(col, hero, p):
     co = co.reshape(-1, 3)
     # --- 注連縄 ---
     z = max(2.4, p.height_m * p.root_flare_height + 0.4)
-    ring = co[np.abs(co[:, 2] - z) < 0.15]
-    ring = ring[np.hypot(ring[:, 0], ring[:, 1]) < 4.0]                     # 近くを通る枝のスタブを除く
-    c = ring[:, :2].mean(axis=0)
+    ring = co[np.abs(co[:, 2] - z) < 0.15][:, :2]
+    d0 = np.hypot(ring[:, 0], ring[:, 1])
+    ring = ring[d0 < 1.5 * np.median(d0)]                                   # この高さにかかる枝のスタブの頂点を除く
+    c = ring.mean(axis=0)
     R0 = float(np.percentile(np.hypot(ring[:, 0] - c[0], ring[:, 1] - c[1]), 95))
     rr = 0.14
     R = R0 + rr + 0.03
@@ -678,8 +680,8 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
             continue
         make_tree(props, preset_io, sc, "sugi", f"Forest_{j:03d}", (x, y, 0.0), yaw, bark,
                   quality="PREVIEW", seed=int(500 + j), height_m=H, dbh_cm=dbh, crown_width_m=cw,
-                  crown_base_ratio=base, trunk_lean_deg=lean, leaf_scale=6.0, leaf_cluster=5, leaves_per_m=60.0,
-                  foliage_amount=2.0, leaf_max_instances=4000)
+                  crown_base_ratio=base, trunk_lean_deg=lean, leaf_scale=7.0, leaf_cluster=5, leaves_per_m=60.0,
+                  foliage_amount=3.0, leaf_max_instances=6000)
         j += 1
     return hero
 
