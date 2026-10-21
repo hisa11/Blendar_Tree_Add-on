@@ -179,7 +179,8 @@ def _build() -> list[Param]:
         P("leaf_color", "color", (0.10, 0.28, 0.05), label="葉の色", group="leaf"),
         P("autumn_color", "color", (0.75, 0.40, 0.05), label="紅葉の色", group="leaf"),
         P("flower_color", "color", (0.96, 0.72, 0.80), label="花の色", group="leaf"),
-        P("bark_type", "enum", "fissured", label="樹皮タイプ", group="leaf", update_regen=False,
+        P("bark_type", "enum", "fissured", label="樹皮タイプ（記録のみ）", group="leaf", update_regen=False,
+          desc="樹皮の種類のメモ。現在は見た目に反映されない（材質は「マテリアル」パネルで選ぶ）",
           items=tuple((b, b) for b in BARK_TYPES)),
         # --- 材質・UV ---
         P("bark_tile_w_m", "float", 1.0, 0.05, 5.0, "m", "樹皮タイル幅", "テクスチャ1枚の実寸（周方向）", "material"),

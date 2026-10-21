@@ -135,7 +135,7 @@
 | 葉の色 | `leaf_color` |  |  | (0.10, 0.28, 0.05) |  |
 | 紅葉の色 | `autumn_color` |  |  | (0.75, 0.40, 0.05) |  |
 | 花の色 | `flower_color` |  |  | (0.96, 0.72, 0.80) |  |
-| 樹皮タイプ | `bark_type` |  | fissured / scaly_plates / strip_peel / flaking / smooth_lenticel | fissured |  |
+| 樹皮タイプ（記録のみ） | `bark_type` |  | fissured / scaly_plates / strip_peel / flaking / smooth_lenticel | fissured | 樹皮の種類のメモ。現在は見た目に反映されない（材質は「マテリアル」パネルで選ぶ） |
 
 ## 樹皮の UV・材質
 
