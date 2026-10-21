@@ -434,13 +434,16 @@ def test_foliage_amount_scales_leaf_count_linearly():
 
 
 def test_foliage_amount_beyond_cap_enlarges_leaves_instead():
-    """上限に達したら数を増やせないので、1枚あたりを大きくして密度感を保つ（上限 2.5 倍）。"""
-    a = gen("keyaki", quality="PREVIEW", foliage_amount=0.5).leaves
-    b = gen("keyaki", quality="PREVIEW", foliage_amount=3.0).leaves
-    assert a.n == b.n == allometry.quality_table("PREVIEW")["leaf_cap"]
+    """上限に達したら数を増やせないので、1枚あたりを大きくして密度感を保つ（上限 2.5 倍）。
+    プレビューは上限（2 万）が低く、枝が増えた今は葉の量 0.5 で 2.5 倍に達するので、標準で見る。"""
+    cap = allometry.quality_table("MEDIUM")["leaf_cap"]
+    a = gen("keyaki", quality="MEDIUM", foliage_amount=0.5).leaves
+    b = gen("keyaki", quality="MEDIUM", foliage_amount=3.0).leaves
+    assert a.n == b.n == cap
     assert b.scale[:, 0].mean() > 1.4 * a.scale[:, 0].mean()
-    c = gen("keyaki", quality="PREVIEW", foliage_amount=5.0).leaves
+    c = gen("keyaki", quality="MEDIUM", foliage_amount=5.0).leaves
     assert c.scale[:, 0].mean() <= 2.6 * a.scale[:, 0].mean()
+    assert c.scale[:, 0].mean() <= 2.6 * 1.0 * 1.0 + 1e-6                          # 倍率の上限は MAX_BOOST
 
 
 def test_leaf_max_instances_overrides_quality_cap():
@@ -667,13 +670,32 @@ def test_medium_foliage_is_close_to_hero(sid):
 
 
 def test_budget_thinning_keeps_ghosts_of_healthy_l2_only():
-    t = gen("keyaki", quality="MEDIUM", seed=3)
+    t = gen("sugi_giant", quality="PREVIEW", seed=3)
     sk = t.skeleton
-    assert len(sk.ghosts) > 100                                       # 予算で L2 が大きく間引かれる
+    assert len(sk.ghosts) > 100                                       # プレビューの大木は予算で L2 が大きく間引かれる
     assert all(a.level == 2 and not a.dead for a in sk.ghosts)
     assert not any(a.removed for a in sk.axes)
     # ghost は葉の配置にだけ使う。メッシュ（三角形）は増えない
+    assert t.mesh.tri_count <= allometry.quality_table("PREVIEW")["tri_cap"]
+
+
+@pytest.mark.parametrize("sid", ["keyaki", "sugi_giant", "kusunoki", "quercus_robur"])
+def test_medium_keeps_the_branch_hierarchy(sid):
+    """標準で細い枝を作らず間引くと、葉が幹や太い枝に直接乗って見える。細い枝ほど断面・節を粗くして L2 を残し、L3 も作る。"""
+    t = gen(sid, quality="MEDIUM", seed=3)
+    sk = t.skeleton
+    l2 = sum(1 for a in sk.axes if a.level == 2)
+    l3 = sum(1 for a in sk.axes if a.level == 3)
+    assert len(sk.ghosts) <= 0.1 * (l2 + len(sk.ghosts)), (sid, l2, len(sk.ghosts))
+    assert l3 >= 1000, (sid, l3)
     assert t.mesh.tri_count <= allometry.quality_table("MEDIUM")["tri_cap"]
+
+
+@pytest.mark.parametrize("sid", ["keyaki", "sugi_giant", "kusunoki"])
+def test_preview_keeps_a_good_share_of_l2(sid):
+    t = gen(sid, quality="PREVIEW", seed=3)
+    l2 = sum(1 for a in t.skeleton.axes if a.level == 2)
+    assert l2 >= 0.25 * (l2 + len(t.skeleton.ghosts)), (sid, l2, len(t.skeleton.ghosts))
 
 
 def test_hero_is_the_reference_and_gets_no_virtual_twigs():

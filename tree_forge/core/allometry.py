@@ -117,13 +117,15 @@ def profile_dbh_cm(p) -> float:
 
 # (リング頂点数: 幹, L1, L2, L3) / 長さ方向の目標分割長[m] / 本数の上限
 _QUALITY = {
-    "PREVIEW": dict(max_level=2, ring=(12, 6, 4, 3), seg_len=(0.50, 0.50, 0.25, 0.12), seg_max=(60, 12, 10, 5),
+    # プレビュー・標準は、枝の「本数」を残すことを優先する（枝が無いと葉が幹や太い枝に直接乗って見える）。
+    # 細い枝ほど断面を粗く・節を少なくして 1 本あたりの三角形を減らし、L2 を間引かずに収める
+    "PREVIEW": dict(max_level=2, ring=(12, 5, 3, 3), seg_len=(0.50, 1.20, 1.00, 0.60), seg_max=(60, 10, 4, 3), seg_min=(3, 3, 2, 2),
                     l3_cap=0, leaf_cap=20_000, tri_cap=30_000),
-    "MEDIUM": dict(max_level=3, ring=(24, 10, 6, 4), seg_len=(0.25, 0.25, 0.12, 0.06), seg_max=(120, 48, 24, 8),
-                   l3_cap=2200, leaf_cap=150_000, tri_cap=200_000),
+    "MEDIUM": dict(max_level=3, ring=(24, 8, 4, 3), seg_len=(0.25, 0.60, 1.00, 0.60), seg_max=(120, 40, 8, 4), seg_min=(3, 3, 3, 2),
+                   l3_cap=6000, leaf_cap=150_000, tri_cap=200_000),
     # 三角形の予算（仕様: 1.2M）は、節の刻みではなく枝の本数に回す。細い枝（L2 6 cm・L3 3 cm 刻み）は
     # 太さに対して細かすぎ、予算を使い切って枝を増やせなかった
-    "HERO": dict(max_level=3, ring=(48, 16, 8, 5), seg_len=(0.15, 0.20, 0.25, 0.12), seg_max=(240, 96, 48, 16),
+    "HERO": dict(max_level=3, ring=(48, 16, 8, 5), seg_len=(0.15, 0.20, 0.25, 0.12), seg_max=(240, 96, 48, 16), seg_min=(3, 3, 3, 3),
                  l3_cap=40_000, leaf_cap=1_500_000, tri_cap=1_200_000),
 }
 
@@ -151,7 +153,7 @@ def n_segments(length: np.ndarray, level: int, quality: str) -> np.ndarray:
     q = _QUALITY[quality]
     lv = min(level, 3)
     n = np.ceil(np.asarray(length, float) / q["seg_len"][lv]).astype(np.int64)
-    return np.clip(n, 3, q["seg_max"][lv])
+    return np.clip(n, q["seg_min"][lv], q["seg_max"][lv])
 
 
 def golden_angle() -> float:

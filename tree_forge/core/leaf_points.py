@@ -133,25 +133,34 @@ VIRTUAL_DEADBAND = 0.9   # すでにある葉が目標のこの割合に届い�
 VIRTUAL_BOOST = 1.8      # 足す葉の上限は「上限枚数 × この倍率² × foliage_amount」。MAX_BOOST までの余地を、葉の量の調整用に残す
 
 
-def _l3_expected(p, sk: Skeleton, l2: list) -> tuple[float, float, float]:
-    """(L3 の見込み本数, 高品質で予算内に収まる本数, L3 1 本の平均の長さ)。L2 の長さと L3 の密度から、_child_specs と同じ式で数える。"""
+def _hero_twigs(p, sk: Skeleton, l2: list) -> tuple[float, float]:
+    """高品質（HERO）が同じ木に付ける葉の量を、L3 の細枝の本数に換算して見積もる。(その本数, L3 1 本の平均の長さ [m])。
+
+    enforce_budget の高品質版: 三角形の予算（1.2M）の中で、L0・L1 の次に L2 を入れ、残りを L3 に回す。
+    L2 が全部入るなら L3 の本数（上限 l3_cap）、入りきらない大木では L3 が無くなり L2 が自分で葉を付けるので、
+    その長さを細枝の本数に直す。
+    """
     per = {"SPIRAL": 1, "OPPOSITE": 2, "WHORL": p.l3_whorl_count}[p.l3_phyllotaxis]
     hq = allometry.quality_table("HERO")
     live = [a for a in sk.axes if not a.removed]
     stems = [a for a in live if a.level == 0 and a.radius is not None]
     r_stem = max((a.radius[0] for a in stems), default=0.0) * p.root_flare_scale
     ring = [max(3, allometry.ring_verts("HERO", lv, r_stem)) for lv in range(4)]
-    base_cost = 0
-    for a in [a for a in live if a.level <= 2] + sk.ghosts:          # 高品質の刻みで L0〜L2 に使う三角形
-        nseg = int(allometry.n_segments(np.array([a.length()]), a.level, "HERO")[0])
-        base_cost += (nseg * 2 + 1) * ring[a.level]
+
+    def cost(a):
+        return (int(allometry.n_segments(np.array([a.length()]), a.level, "HERO")[0]) * 2 + 1) * ring[a.level]
+
+    fixed = sum(cost(a) for a in live if a.level <= 1 or (a.level == 2 and a.dead))     # 葉の付かない L2 は間引かれない
+    c2 = np.array([cost(a) for a in l2], float)
     lens = np.array([a.length() for a in l2])
-    expected = float(p.l3_density * 0.85 * lens.sum() / per)
     # L3 の平均の長さ。長い L2 ほど L3 も多く長いので、L2 の長さで重みを付ける。0.575 は位置 u に応じた係数 max(.15, 1-.75u) と乱数の平均
     twig_len = float((lens ** 2).sum() / lens.sum()) * p.l3_length_ratio * 0.575
-    twig_cost = (int(allometry.n_segments(np.array([twig_len]), 3, "HERO")[0]) * 2 + 1) * ring[3]
-    fit = max(0.0, hq["tri_cap"] * 0.97 - base_cost) / twig_cost
-    return expected, min(expected, hq["l3_cap"], fit), twig_len
+    room = hq["tri_cap"] * 0.97 - fixed
+    if room >= c2.sum():                                                   # L2 は全部入る
+        c3 = (int(allometry.n_segments(np.array([twig_len]), 3, "HERO")[0]) * 2 + 1) * ring[3]
+        expected = p.l3_density * 0.85 * lens.sum() / per
+        return min(expected, hq["l3_cap"], (room - c2.sum()) / c3), twig_len
+    return lens.sum() * max(room, 0.0) / c2.sum() / twig_len, twig_len
 
 
 def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_frac: float, n_existing: int,
@@ -171,7 +180,7 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     trunk = next((a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed), None)
     if not l2 or trunk is None:
         return empty
-    _, target, twig_len = _l3_expected(p, sk, l2)
+    target, twig_len = _hero_twigs(p, sk, l2)
     target *= VIRTUAL_TARGET
     leaves_per_twig = max(per_m * leaf_frac * twig_len * (1.0 - start), 0.5)
     have = n_existing / leaves_per_twig                  # すでにある葉の点を、細枝何本ぶんかに換算
@@ -265,11 +274,12 @@ def generate(p, sk: Skeleton, st) -> LeafData:
                              surface=True)
         above = s_pts[:, 2] >= p.crown_base_ratio * p.height_m          # 幹分かれの下の幹（樹冠より下）には付けない
         extra.append((s_pts[above], s_tg[above]))
-        for e_pts, e_tg in extra:
-            pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
+        # 足りない細枝の葉は、末端の枝の葉（pts）だけを基準に足す。「葉を付ける枝」で足す内側の枝の葉は、その上にさらに加わる
         v_pts, v_tg = virtual_twig_points(p, sk, rng, per_m, start, leaf_frac, len(pts),
                                           int(cap * VIRTUAL_BOOST ** 2 * p.foliage_amount))
         pts, tg = np.concatenate([pts, v_pts]), np.concatenate([tg, v_tg])
+        for e_pts, e_tg in extra:
+            pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)
         boost = 1.0
         if n > cap:
