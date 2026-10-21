@@ -9,8 +9,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from . import allometry, leaf_shapes
-from .skeleton import Skeleton
+from . import allometry, envelope, leaf_shapes
+from .skeleton import Skeleton, _center_fn
 from .util import frame_matrices, mat_to_quat, normalize, perp_basis, smoothstep
 
 
@@ -128,6 +128,110 @@ def _sub_levels(sk: Skeleton, depth: int, exclude: set):
     return [a for a in live if not a.dead and a.level == lv and a.level >= 1 and a.id not in exclude]
 
 
+VIRTUAL_TARGET = 0.8     # 高品質（HERO）が予算内で持てる L3 の本数の見積りに対する割合（HERO の実測は見積りの 0.8〜1.5 倍）
+VIRTUAL_DEADBAND = 0.9   # すでにある葉が目標のこの割合に届いていれば足さない
+VIRTUAL_BOOST = 1.8      # 足す葉の上限は「上限枚数 × この倍率² × foliage_amount」。MAX_BOOST までの余地を、葉の量の調整用に残す
+
+
+def _l3_expected(p, sk: Skeleton, l2: list) -> tuple[float, float, float]:
+    """(L3 の見込み本数, 高品質で予算内に収まる本数, L3 1 本の平均の長さ)。L2 の長さと L3 の密度から、_child_specs と同じ式で数える。"""
+    per = {"SPIRAL": 1, "OPPOSITE": 2, "WHORL": p.l3_whorl_count}[p.l3_phyllotaxis]
+    hq = allometry.quality_table("HERO")
+    live = [a for a in sk.axes if not a.removed]
+    stems = [a for a in live if a.level == 0 and a.radius is not None]
+    r_stem = max((a.radius[0] for a in stems), default=0.0) * p.root_flare_scale
+    ring = [max(3, allometry.ring_verts("HERO", lv, r_stem)) for lv in range(4)]
+    base_cost = 0
+    for a in [a for a in live if a.level <= 2] + sk.ghosts:          # 高品質の刻みで L0〜L2 に使う三角形
+        nseg = int(allometry.n_segments(np.array([a.length()]), a.level, "HERO")[0])
+        base_cost += (nseg * 2 + 1) * ring[a.level]
+    lens = np.array([a.length() for a in l2])
+    expected = float(p.l3_density * 0.85 * lens.sum() / per)
+    # L3 の平均の長さ。長い L2 ほど L3 も多く長いので、L2 の長さで重みを付ける。0.575 は位置 u に応じた係数 max(.15, 1-.75u) と乱数の平均
+    twig_len = float((lens ** 2).sum() / lens.sum()) * p.l3_length_ratio * 0.575
+    twig_cost = (int(allometry.n_segments(np.array([twig_len]), 3, "HERO")[0]) * 2 + 1) * ring[3]
+    fit = max(0.0, hq["tri_cap"] * 0.97 - base_cost) / twig_cost
+    return expected, min(expected, hq["l3_cap"], fit), twig_len
+
+
+def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_frac: float, n_existing: int,
+                        max_points: int):
+    """低い品質（L3 を間引いた・作らない）で、L3 の細枝があるはずの場所に葉の点だけを足す。
+
+    枝は作らない。細い枝（太さ数 mm）は遠目には見えず、葉の量だけが品質で変わってしまうのを防ぐ。
+    L2（予算で間引いたものを含む）の途中に、_child_specs と同じ分布（位置 u・角度・長さ）で仮想の細枝を立て、その上に葉の点を置く。
+    すでにある葉の点（n_existing）を細枝何本ぶんかに換算して差し引き、足りない分だけ足す。
+    HERO は基準なので何も足さない。(位置, 接線) を返す。
+    """
+    empty = (np.zeros((0, 3)), np.zeros((0, 3)))
+    if p.quality == "HERO":
+        return empty
+    l2 = [a for a in sk.axes if not a.removed and a.level == 2 and not a.dead and a.n >= 2]
+    l2 += [a for a in sk.ghosts if a.n >= 2]             # 予算で間引いた L2 にも、あったはずの細枝（の葉）を立てる
+    trunk = next((a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed), None)
+    if not l2 or trunk is None:
+        return empty
+    _, target, twig_len = _l3_expected(p, sk, l2)
+    target *= VIRTUAL_TARGET
+    leaves_per_twig = max(per_m * leaf_frac * twig_len * (1.0 - start), 0.5)
+    have = n_existing / leaves_per_twig                  # すでにある葉の点を、細枝何本ぶんかに換算
+    if have >= VIRTUAL_DEADBAND * target:
+        return empty
+    cum, cat_p, starts, ends, lens = [], [], [], [], []
+    off, k = 0.0, 0
+    for a in l2:                                          # 全 L2 の節を 1 本の配列にして、位置の探索を一括でする
+        n_use = a.neck + 1 if a.neck >= 0 else a.n
+        if n_use < 2:
+            continue
+        P = a.pos[:n_use]
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
+        if s[-1] < 0.05:
+            continue
+        cum.append(s + off)
+        cat_p.append(P)
+        starts.append(k)
+        ends.append(k + n_use)
+        lens.append(s[-1])
+        off += s[-1] + 1.0
+        k += n_use
+    if not lens:
+        return empty
+    G, PC = np.concatenate(cum), np.concatenate(cat_p)
+    starts, ends, lens = np.array(starts), np.array(ends), np.array(lens)
+    offs = G[starts]
+    missing = min(int(target - have), int(max_points / leaves_per_twig))
+    if missing <= 0:
+        return empty
+    w = lens / lens.sum()
+    par = rng.choice(len(lens), missing, p=w)
+    u = rng.uniform(0.12, 0.97, missing)
+    key = offs[par] + u * lens[par]
+    kk = np.clip(np.searchsorted(G, key, side="right") - 1, starts[par], ends[par] - 2)
+    f = ((key - G[kk]) / np.maximum(G[kk + 1] - G[kk], 1e-9))[:, None]
+    base = PC[kk] * (1 - f) + PC[kk + 1] * f
+    t = normalize(PC[kk + 1] - PC[kk])
+    e1, e2 = perp_basis(t)
+    ang = np.clip(math.radians(p.l3_angle_deg) + rng.normal(0.0, math.radians(p.l3_angle_var_deg), missing),
+                  math.radians(5), math.radians(140))
+    phi = rng.uniform(0.0, 2.0 * math.pi, missing)
+    d = np.cos(ang)[:, None] * t + np.sin(ang)[:, None] * (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2)
+    length = lens[par] * p.l3_length_ratio * np.maximum(0.15, 1.0 - 0.75 * u) * rng.uniform(0.8, 1.15, missing)
+    s0 = start * length
+    cnt = per_m * leaf_frac * (length - s0)
+    m = (cnt + rng.random(missing)).astype(int)
+    tw = np.repeat(np.arange(missing), m)
+    if len(tw) == 0:
+        return empty
+    sa = s0[tw] + (length[tw] - s0[tw]) * rng.random(len(tw))
+    sag = 0.3 * p.l3_droop
+    z = np.array([0.0, 0.0, 1.0])
+    pt = base[tw] + d[tw] * sa[:, None] - z * (sag * sa ** 2 / length[tw])[:, None]
+    tg = normalize(d[tw] - z * (2.0 * sag * sa / length[tw])[:, None])
+    cx, cy = _center_fn(trunk)(pt[:, 2])                                   # 樹冠のエンベロープの外と地面の下は除く
+    inside = (np.hypot(pt[:, 0] - cx, pt[:, 1] - cy) <= envelope.reach(p, pt[:, 2]) * 1.05) & (pt[:, 2] > 0.05)
+    return pt[inside], tg[inside]
+
+
 def generate(p, sk: Skeleton, st) -> LeafData:
     rng = st.leaves
     flowering = p.flower_density > 0.0
@@ -163,6 +267,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         extra.append((s_pts[above], s_tg[above]))
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
+        v_pts, v_tg = virtual_twig_points(p, sk, rng, per_m, start, leaf_frac, len(pts),
+                                          int(cap * VIRTUAL_BOOST ** 2 * p.foliage_amount))
+        pts, tg = np.concatenate([pts, v_pts]), np.concatenate([tg, v_tg])
         n = len(pts)
         boost = 1.0
         if n > cap:

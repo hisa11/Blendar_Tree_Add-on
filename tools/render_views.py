@@ -1,12 +1,14 @@
-"""木を「全体像」と「引き」の 2 つの視点で描画する（見た目の確認・文書の画像用）。
+"""木を「全体像」「引き」「寄り」「根元」の 4 つの視点で描画する（見た目の確認・文書の画像用）。
 
-    python tools/render_views.py --out views                                  # 13 樹種 × 3 品質 × 3 本 × 2 視点
+    python tools/render_views.py --out views                                  # 13 樹種 × 3 品質 × 3 本 × 4 視点
     python tools/render_views.py --species keyaki --qualities MEDIUM --variants 1 --out views
     python tools/render_views.py --species sugi --views full --res 720 --spp 48 --out views   # 1 本を大きく
 
   full: 全体像。木全体を画面いっぱいに収める（枝ぶり・樹冠の形・幹）。
   far : 引き。人の背丈（1.7 m）の目線で、樹高の約 8 倍離れて見る。地平線が入り、遠目の樹形のまとまり・葉の密度・シルエットが分かる。
         足元に 1.7 m の人影を置いて大きさの目安にする。
+  near: 寄り。樹冠の外側・中ほどの高さへ 2.5〜7 m まで近づく。枝の分かれ方・葉の付き方・葉の大きさと枝の太さの釣り合いが分かる。
+  base: 根元。胸高あたりの幹へ近づく。樹皮・根張り・幹の断面の形・枝痕が分かる。
 
 木は tools/debug_sweep.py と同じ条件（サイズ倍率 0.7 / 1.0 / 1.4、別々のシード）で作る。出力は {樹種}_{品質}_v{番号}_{視点}.png。
 bpy が要る（bpy モジュール、または blender -b --python）。Cycles CPU。
@@ -19,6 +21,7 @@ import time
 from pathlib import Path
 
 import bpy
+import numpy as np
 from mathutils import Vector
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,8 +29,9 @@ sys.path.insert(0, str(ROOT))
 
 import tree_forge  # noqa: E402
 from tree_forge import props, schema  # noqa: E402
+from tree_forge.core import envelope  # noqa: E402
 
-VIEWS = ("full", "far")
+VIEWS = ("full", "far", "near", "base")
 
 
 def _sweep():
@@ -124,12 +128,24 @@ def render_views(ov, out_dir: Path, stem: str, views=VIEWS, res=360, spp=10):
             hfov = 2 * math.atan(18.0 * sc.render.resolution_x / sc.render.resolution_y / cam.lens)
             d = max(H * 0.56 / math.tan(vfov / 2), W * 0.60 / math.tan(hfov / 2))
             aim(co, (d * 0.6, -d * 0.8, H * 0.42), (0, 0, H * 0.48))
-        else:
+        elif view == "far":
             sc.render.resolution_x, sc.render.resolution_y = int(res * 4 / 3), int(res * 0.75)
             vfov = 2 * math.atan(18.0 * sc.render.resolution_y / sc.render.resolution_x / cam.lens)
             d = H / (0.30 * 2 * math.tan(vfov / 2))                   # 樹高が画面の約 30%
             aim(co, (0.3 * d, -0.95 * d, 1.7), (0, 0, H * 0.32))
             add_person((W * 0.35 + 1.5, -1.0, 0))
+        elif view == "near":
+            sc.render.resolution_x, sc.render.resolution_y = int(res * 4 / 3), int(res * 0.75)
+            zt = (p.crown_base_ratio + 0.55 * (1.0 - p.crown_base_ratio)) * H          # 樹冠の中ほどの高さ
+            reach = float(envelope.reach(p, np.array([zt]))[0])
+            d = min(7.0, max(2.5, 0.12 * H))                                            # 画面の幅 ≈ 0.72 d [m]
+            tgt = Vector((0.0, -0.7 * reach, zt))
+            aim(co, tgt + Vector((0.3, -1.0, 0.12)).normalized() * d, tgt)
+        else:                                                                           # base
+            sc.render.resolution_x, sc.render.resolution_y = res, int(res * 1.25)
+            dia = max(p.dbh_cm / 100.0 * 1.2, 0.2)                                      # 根張りぶんを少し見込む
+            d = max(3.0 / 0.72, 2.2 * dia / 0.576)                                      # 縦 3 m 以上・幅は直径の 2.2 倍以上
+            aim(co, (d * 0.55, -d * 0.83, 1.5), (0, 0, 1.3))
         sc.render.filepath = str(out_dir / f"{stem}_{view}.png")
         bpy.ops.render.render(write_still=True)
     return H, W, info
@@ -140,9 +156,9 @@ def main():
     ap.add_argument("--species", default="all")
     ap.add_argument("--qualities", default="PREVIEW,MEDIUM,HERO")
     ap.add_argument("--variants", default="0,1,2")
-    ap.add_argument("--views", default="full,far")
+    ap.add_argument("--views", default=",".join(VIEWS))
     ap.add_argument("--out", default="views")
-    ap.add_argument("--res", type=int, default=360, help="全体像の横幅 [px]（縦は 1.25 倍。引きは横 4/3 倍・縦 0.75 倍）")
+    ap.add_argument("--res", type=int, default=360, help="全体像・根元の横幅 [px]（縦は 1.25 倍）。引き・寄りは横 4/3 倍・縦 0.75 倍")
     ap.add_argument("--spp", type=int, default=10)
     args = ap.parse_args()
     sweep = _sweep()

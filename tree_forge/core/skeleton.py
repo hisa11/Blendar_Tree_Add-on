@@ -52,6 +52,8 @@ class Axis:
 class Skeleton:
     def __init__(self) -> None:
         self.axes: list[Axis] = []
+        # 三角形の予算のために間引いた L2（健全なもの）。枝は作らないが、葉は残す（leaf_points.virtual_twig_points）
+        self.ghosts: list[Axis] = []
 
     def add(self, level, parent, parent_node, pos, out_dir, dead=False, phase=0.0) -> Axis:
         ax = Axis(len(self.axes), level, parent, parent_node, pos, out_dir, dead=dead, phase=phase)
@@ -399,6 +401,8 @@ def enforce_budget(p, sk: Skeleton, rng) -> None:
             for a in lv:
                 if rng.random() < drop:
                     sk.remove_subtree(a.id, cm)
+                    if level == 2 and not a.dead:
+                        sk.ghosts.append(a)
             sk.compact()
 
 
@@ -447,3 +451,5 @@ def fit_width(p, sk: Skeleton, lo: float = 0.95, hi: float = 1.05) -> None:
     for a in sk.axes:
         if not a.removed:
             a.pos = a.pos * scale
+    for a in sk.ghosts:
+        a.pos = a.pos * scale

@@ -435,7 +435,7 @@ def test_foliage_amount_scales_leaf_count_linearly():
 
 def test_foliage_amount_beyond_cap_enlarges_leaves_instead():
     """上限に達したら数を増やせないので、1枚あたりを大きくして密度感を保つ（上限 2.5 倍）。"""
-    a = gen("keyaki", quality="PREVIEW", foliage_amount=1.0).leaves
+    a = gen("keyaki", quality="PREVIEW", foliage_amount=0.5).leaves
     b = gen("keyaki", quality="PREVIEW", foliage_amount=3.0).leaves
     assert a.n == b.n == allometry.quality_table("PREVIEW")["leaf_cap"]
     assert b.scale[:, 0].mean() > 1.4 * a.scale[:, 0].mean()
@@ -648,3 +648,60 @@ def test_autumn_colour_is_complete_at_season_085():
     assert colour >= 0.95 and leaf >= 0.99
     assert leaf_points.season_state(0.55, False, False)[2] <= 0.05                 # 夏はまだ緑
     assert leaf_points.season_state(1.0, False, False)[0] <= 0.01                  # 落葉
+
+
+# --- 品質による葉の量の差（予算で間引いた枝にも葉を残す）-----------------------------
+def _leaf_area(t) -> float:
+    m = t.leaves.is_leaf
+    return float((t.leaves.scale[m, 0] ** 2).sum())
+
+
+@pytest.mark.parametrize("sid", ["keyaki", "shidareyanagi", "sugi"])
+def test_medium_foliage_is_close_to_hero(sid):
+    """標準品質は三角形の予算（20 万）で L2・L3 を大きく間引くため、葉まで間引くと高品質の 2〜5 割になっていた。
+    間引いた枝の分も葉を足し、葉の量（枚数×面積）を高品質の 6 割以上にそろえる。"""
+    hero = _leaf_area(gen(sid, quality="HERO", seed=3))
+    medium = _leaf_area(gen(sid, quality="MEDIUM", seed=3))
+    assert medium >= 0.6 * hero, (sid, medium / hero)
+    assert medium <= 1.4 * hero, (sid, medium / hero)
+
+
+def test_budget_thinning_keeps_ghosts_of_healthy_l2_only():
+    t = gen("keyaki", quality="MEDIUM", seed=3)
+    sk = t.skeleton
+    assert len(sk.ghosts) > 100                                       # 予算で L2 が大きく間引かれる
+    assert all(a.level == 2 and not a.dead for a in sk.ghosts)
+    assert not any(a.removed for a in sk.axes)
+    # ghost は葉の配置にだけ使う。メッシュ（三角形）は増えない
+    assert t.mesh.tri_count <= allometry.quality_table("MEDIUM")["tri_cap"]
+
+
+def test_hero_is_the_reference_and_gets_no_virtual_twigs():
+    p = species_params("shidareyanagi", quality="HERO", seed=3)
+    t = pipeline.generate(p)
+    pts, tg = leaf_points.virtual_twig_points(p, t.skeleton, np.random.default_rng(0), 90.0, 0.2, 1.0, 0, 10 ** 6)
+    assert len(pts) == 0 and len(tg) == 0
+
+
+@pytest.mark.parametrize("sid", ["keyaki", "sugi", "kusunoki"])
+def test_virtual_twig_leaves_stay_inside_the_crown_and_above_the_ground(sid):
+    p = species_params(sid, quality="MEDIUM", seed=3)
+    t = pipeline.generate(p)
+    pts, tg = leaf_points.virtual_twig_points(p, t.skeleton, np.random.default_rng(1), 90.0, 0.2, 1.0, 0, 10 ** 6)
+    assert len(pts) > 1000                                              # 標準品質では足りない分が実際に足される
+    trunk = next(a for a in t.skeleton.axes if a.level == 0 and a.parent < 0)
+    cx, cy = skeleton._center_fn(trunk)(pts[:, 2])
+    assert np.all(np.hypot(pts[:, 0] - cx, pts[:, 1] - cy) <= envelope.reach(p, pts[:, 2]) * 1.05 + 1e-6)
+    assert pts[:, 2].min() > 0.05
+    assert np.allclose(np.linalg.norm(tg, axis=1), 1.0, atol=1e-6)
+
+
+def test_virtual_twigs_respect_the_leaf_cap_and_time_budget():
+    for sid in schema.SPECIES_IDS:
+        for q in ("PREVIEW", "MEDIUM"):
+            p = species_params(sid, quality=q, seed=5)
+            t0 = time.time()
+            t = pipeline.generate(p)
+            dt = time.time() - t0
+            assert t.leaves.n <= allometry.quality_table(q)["leaf_cap"], (sid, q)
+            assert dt <= (1.0 if q == "PREVIEW" else 4.0), (sid, q, dt)
