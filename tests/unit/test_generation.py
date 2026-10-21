@@ -462,6 +462,20 @@ def test_leaf_start_moves_leaves_toward_tips():
     assert _leaf_n(leaf_start=0.0) > _leaf_n(leaf_start=0.2) > _leaf_n(leaf_start=0.6)
 
 
+def test_trunk_top_bears_leaves():
+    """幹の先端（上位 7%）の近くにも葉が付く。以前は幹が葉の対象外で、頂部が裸の針のように見えた。"""
+    for sid in ("sugi_giant", "sugi"):
+        t = gen(sid, quality="MEDIUM", leaf_max_instances=3_000_000)
+        a = t.skeleton.axes[0]
+        pos = a.pos[: (a.neck + 1 if a.neck >= 0 else a.n)]
+        seg = np.linalg.norm(np.diff(pos, axis=0), axis=1)
+        s = np.concatenate([[0.0], np.cumsum(seg)])
+        top = pos[s >= 0.93 * s[-1]]
+        lp = t.leaves.pos[t.leaves.is_leaf]
+        d = np.min(np.linalg.norm(lp[:, None, :] - top[None, :, :], axis=2), axis=1)
+        assert (d < 0.6).sum() >= 20, (sid, int((d < 0.6).sum()))
+
+
 def test_foliage_controls_do_not_change_branches():
     base = mesh_hash(gen("keyaki", quality="PREVIEW"))
     for ov in (dict(foliage_amount=3.0), dict(leaf_reach="ALL"), dict(leaf_start=0.0),

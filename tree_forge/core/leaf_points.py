@@ -143,6 +143,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             extra.append(_place(sub1, per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
         if reach == "ALL":                                  # さらに手前の枝の外側 40%
             extra.append(_place(_sub_levels(sk, 2, done), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
+        # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける
+        live = [a for a in sk.axes if not a.removed]
+        extra.append(_place([a for a in live if a.level == 0 and not a.dead], per_m * 0.5, 0.93, rng, leaf_frac, theta, 0.25))
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)
