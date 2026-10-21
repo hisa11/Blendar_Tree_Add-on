@@ -52,9 +52,9 @@
     "geom": "CUTOUT_MESH",
     "evergreen": true,
     "color": [
-      0.04,
-      0.15,
-      0.06
+      0.07,
+      0.21,
+      0.09
     ],
     "autumn_color": [
       0.25,

@@ -204,7 +204,7 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
 # --------------------------------------------------------------------------------------
 # 子の配置
 # --------------------------------------------------------------------------------------
-def _child_specs(p, sk: Skeleton, parents: list[Axis], level: int, rng) -> dict | None:
+def _child_specs(p, parents: list[Axis], level: int, rng) -> dict | None:
     pre = f"l{level}_"
     density = getattr(p, pre + "density")
     phyl = getattr(p, pre + "phyllotaxis")
@@ -384,7 +384,7 @@ def build(p, st) -> Skeleton:
     for level in (1, 2, 3):
         if level > qual["max_level"] or not parents:
             break
-        sp = _child_specs(p, sk, parents, level, rng)
+        sp = _child_specs(p, parents, level, rng)
         if sp is None:
             break
         if level == 3:

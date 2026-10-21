@@ -27,7 +27,8 @@ def main() -> int:
     except ImportError:
         print("bpy が無いので Blender テストをスキップ")
     else:
-        rc |= subprocess.call([sys.executable, str(ROOT / "tests" / "blender" / "test_addon.py")], cwd=ROOT)
+        for t in ("test_addon.py", "test_ui.py"):
+            rc |= subprocess.call([sys.executable, str(ROOT / "tests" / "blender" / t)], cwd=ROOT)
     return rc
 
 

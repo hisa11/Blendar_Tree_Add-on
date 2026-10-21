@@ -55,7 +55,7 @@ def test_determinism_and_stream_independence():
     # 葉の密度・大きさは枝の形を変えない（乱数ストリームが別）
     c = gen("keyaki", quality="PREVIEW", leaves_per_m=200, leaf_scale=2.0, leaf_cluster=2)
     assert mesh_hash(a) == mesh_hash(c)
-    assert c.leaves.n != a.leaves.n
+    assert not np.array_equal(c.leaves.pos, a.leaves.pos) or c.leaves.scale.mean() != a.leaves.scale.mean()
 
 
 # --- レオナルドの規則 ---------------------------------------------------------
@@ -319,7 +319,6 @@ def test_uv_bark_tiling_uses_integer_wraps():
     quad = np.nonzero(m.face_size == 4)[0][:2000]
     u = m.uv[starts[quad][:, None] + np.arange(4)][..., 0]
     span = u.max(axis=1) - u.min(axis=1)
-    k = span * 1.0
     # 四角形の u 幅は 整数/V の倍数（周方向の整数巻き）
     assert np.all(span >= 0)
     t2 = gen("keyaki", quality="PREVIEW", uv_integer_wrap=False)

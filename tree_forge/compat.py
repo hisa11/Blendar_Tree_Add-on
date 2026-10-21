@@ -29,10 +29,13 @@ def ensure_node_tree(mat) -> None:
         mat.use_nodes = True
 
 
-def user_preset_dir(package: str | None) -> Path:
-    """ユーザープリセットの保存先。拡張機能として入っていればその専用領域、そうでなければ scripts 配下。"""
+def user_preset_dir(package: str | None = None) -> Path:
+    """ユーザープリセットの保存先。拡張機能として入っていればその専用領域、そうでなければ scripts 配下。
+
+    package の既定はこのアドオンのルートパッケージ（拡張機能なら bl_ext.<repo>.tree_forge）。
+    """
     try:
-        return Path(bpy.utils.extension_path_user(package, path="presets", create=True))
+        return Path(bpy.utils.extension_path_user(package or __package__, path="presets", create=True))
     except Exception:  # noqa: BLE001 - 拡張機能でない読み込み（開発時・テスト）
         d = Path(bpy.utils.user_resource("SCRIPTS", path="presets/tree_forge", create=True))
         d.mkdir(parents=True, exist_ok=True)

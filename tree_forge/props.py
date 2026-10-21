@@ -187,6 +187,8 @@ def ensure_template(scene) -> None:
 
 
 def _init_templates():
+    if not hasattr(bpy.types.Scene, "tree_forge"):       # 起動直後にアドオンが無効化された場合
+        return None
     for sc in bpy.data.scenes:
         ensure_template(sc)
     return None
@@ -202,6 +204,11 @@ def copy_group(src, dst) -> None:
           for p in schema.PARAMS}
     ov["profile"] = [(pt.height_ratio, pt.diameter_cm) for pt in src.profile]
     write(dst, ov, reset=False)
+    for part in PARTS:                                   # 割り当て済みの材質・葉オブジェクトも引き継ぐ
+        setattr(dst.materials, part, getattr(src.materials, part))
+    dst.materials.auto_assign = src.materials.auto_assign
+    dst.materials.flip_normal_green = src.materials.flip_normal_green
+    dst.leaf_object = src.leaf_object
     dst.initialized = True
 
 

@@ -107,17 +107,35 @@ def _hide(obj) -> None:
         pass
 
 
-def _ensure_source(context, pg_field, name, verts, tris, uv, existing):
-    """生成した葉・花のインスタンス元オブジェクトを作る／更新する。"""
+ROLE_KEY = "tf_role"
+
+
+def _adopt(obj, ref, role):
+    """obj が所有する子オブジェクトを返す。ref（保存済みの参照）が自分の子ならそれ、
+    複製された木などで参照が他の木を指していれば、自分の子から role の一致するものを探す。"""
+    if ref is not None and ref.parent is obj:
+        return ref
+    for c in obj.children:
+        if c.get(ROLE_KEY) == role:
+            return c
+    return None
+
+
+def _ensure_source(context, obj, role, name, verts, tris, uv, existing):
+    """生成した葉・花のインスタンス元オブジェクト（木の子・非表示）を作る／更新する。"""
     me = bpy.data.meshes.new(name)
     fill_source(me, verts, tris, uv)
-    if existing is None or existing.name not in bpy.data.objects:
-        obj = bpy.data.objects.new(name, me)
-        _sources_collection(context).objects.link(obj)
-        _hide(obj)
-        return obj
-    _replace_mesh(existing, me)
-    return existing
+    src = _adopt(obj, existing, role)
+    if src is None:
+        src = bpy.data.objects.new(name, me)
+        src[ROLE_KEY] = role
+        _sources_collection(context).objects.link(src)
+        src.parent = obj
+        _hide(src)
+        return src
+    src.name = name
+    _replace_mesh(src, me)
+    return src
 
 
 def create_tree_object(context, name="Tree") -> bpy.types.Object:
@@ -130,13 +148,14 @@ def create_tree_object(context, name="Tree") -> bpy.types.Object:
 
 
 def _ensure_leaves_object(context, obj, pg):
-    lo = pg.leaves_object
-    if lo is None or lo.name not in bpy.data.objects:
+    lo = _adopt(obj, pg.leaves_object, "leaves")
+    if lo is None:
         lo = bpy.data.objects.new(f"{obj.name}_Leaves", bpy.data.meshes.new(f"{obj.name}_Leaves"))
+        lo[ROLE_KEY] = "leaves"
         for col in obj.users_collection:
             col.objects.link(lo)
         lo.parent = obj
-        pg.leaves_object = lo
+    pg.leaves_object = lo
     return lo
 
 
@@ -153,6 +172,7 @@ def build(context, obj, ns=None):
 
     # 葉の点群
     lo = _ensure_leaves_object(context, obj, pg)
+    lo.name = f"{obj.name}_Leaves"
     pc = bpy.data.meshes.new(lo.name)
     fill_point_cloud(pc, tree.leaves)
     _replace_mesh(lo, pc)
@@ -162,12 +182,12 @@ def build(context, obj, ns=None):
         leaf_src = pg.leaf_object
     else:
         v, t, uv = leaf_shapes.leaf_source(ns)
-        leaf_src = _ensure_source(context, "leaf_src", f"{obj.name}_LeafSrc", v, t, uv, pg.leaf_src)
+        leaf_src = _ensure_source(context, obj, "leaf_src", f"{obj.name}_LeafSrc", v, t, uv, pg.leaf_src)
         pg.leaf_src = leaf_src
     flower_src = None
     if ns.flower_density > 0.0:
         v, t, uv = leaf_shapes.flower_source(ns)
-        flower_src = _ensure_source(context, "flower_src", f"{obj.name}_FlowerSrc", v, t, uv, pg.flower_src)
+        flower_src = _ensure_source(context, obj, "flower_src", f"{obj.name}_FlowerSrc", v, t, uv, pg.flower_src)
         pg.flower_src = flower_src
 
     leaf_mat = materials.resolve(pg, "leaf") or materials.default_material(

@@ -38,7 +38,7 @@ class MeshData:
         return int(np.sum(self.face_size - 2))
 
 
-def _pad(axs, getter, M, fill_last=True):
+def _pad(axs, getter, M):
     out = np.empty((len(axs), M) + getter(axs[0]).shape[1:])
     for i, a in enumerate(axs):
         v = getter(a)

@@ -45,9 +45,9 @@
   ],
   "leaves": {
     "type": "BROAD",
-    "length_cm": 6,
+    "length_cm": 7,
     "width_ratio": 0.45,
-    "per_m": 60,
+    "per_m": 90,
     "cluster": 5,
     "geom": "CUTOUT_MESH",
     "color": [

@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 
-from .util import normalize, perp_basis
+from .util import normalize
 
 
 def _strip(widths: np.ndarray, length: float, fold: float, curl: float):
@@ -112,12 +112,12 @@ def fascicle_tuft(length: float, count: int, n: int):
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
-def needle_sprig(needle_len: float, n_needles: int = 16):
+def needle_sprig(needle_len: float, n_needles: int = 24):
     """針葉のらせん: 短い枝に針がらせん状に付く。"""
     verts, uv, tris = [], [], []
     golden = math.radians(137.5)
-    step = 0.2 * needle_len
-    w = max(needle_len * 0.07, 0.0006)
+    step = 0.14 * needle_len
+    w = max(needle_len * 0.13, 0.0006)
     for i in range(n_needles):
         phi = i * golden
         radial = np.array([math.cos(phi), 0.0, math.sin(phi)])

@@ -8,7 +8,7 @@ import bpy
 from bpy.props import StringProperty
 from bpy.types import Operator
 
-from .. import compat, preset_io, props, schema
+from .. import compat, preset_io, props
 from ..core import allometry
 from . import build_mesh, gn_leaves, materials
 
@@ -215,7 +215,7 @@ class TREEFORGE_OT_import_blend_materials(Operator):
 
 # --- プリセット -------------------------------------------------------------
 def _user_dir():
-    return compat.user_preset_dir(__package__.split(".")[0] if __package__ else None)
+    return compat.user_preset_dir()
 
 
 def _apply_preset_dict(context, d):

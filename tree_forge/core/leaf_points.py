@@ -62,7 +62,7 @@ def _bearing_axes(sk: Skeleton):
 
 def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: float, theta_sd: float):
     """軸に沿って per_m 枚/m で点を置く。位置・接線・弧上位置を返す。"""
-    P, Tn, S_idx = [], [], []
+    P, Tn = [], []
     for a in axes:
         n_use = a.neck + 1 if a.neck >= 0 else a.n
         if n_use < 2:
@@ -118,7 +118,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 葉 ---
     if leaf_frac > 0.01:
         theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
-        u0 = 0.1 if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG") else 0.2
+        u0 = 0.1 if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG") else (0.5 if p.leaf_type == "NEEDLE_FASCICLE" else 0.2)
         pts, tg = _place(axes, p.leaves_per_m, u0, rng, leaf_frac, theta, 0.25)
         if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE"):
             # 針葉樹は末端の一段手前の枝の外側半分にも付ける（量感）
@@ -144,7 +144,6 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             parts_var.append(rng.random(n))
 
     # --- 花（L2 以降の細い軸に）---
-    n_leaf = sum(len(x) for x in parts_pos)
     if flower_frac > 0.01 and p.flower_density > 0.0:
         f_axes = [a for a in sk.axes if not a.removed and not a.dead and a.level >= 2]
         pts, tg = _place(f_axes, p.leaves_per_m * 1.2 * p.flower_density, 0.15, rng, flower_frac, 0.8, 0.3)

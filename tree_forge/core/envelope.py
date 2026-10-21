@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 _N = 257
+MIN_REACH = 0.30        # [m] 樹冠内の最小到達半径。円錐の先端でも短い枝が残る
 
 
 def _raw(shape: str, t: np.ndarray) -> np.ndarray:
@@ -58,5 +59,7 @@ def reach(p, z: np.ndarray) -> np.ndarray:
     e = shape_value(p.crown_shape, t)
     below = np.where(z < hb, shape_value(p.crown_shape, np.array(0.0)) * np.clip(z / max(hb, 1e-6), 0.0, 1.0), 0.0)
     out = np.where(z < hb, below, e)
-    out = np.where((z > H) | (z < 0), 0.0, out)
-    return half * out
+    r = half * out
+    inside_crown = (z >= hb) & (z <= 0.985 * H)
+    r = np.where(inside_crown, np.maximum(r, MIN_REACH), r)
+    return np.where((z > H) | (z < 0), 0.0, r)

@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _common import RESULTS, check, register_addon, reset_scene, run_all  # noqa: E402
+from _common import check, register_addon, reset_scene, run_all  # noqa: E402
 
 import bpy  # noqa: E402
 import numpy as np  # noqa: E402
@@ -325,6 +325,75 @@ def _():
     sc = np.zeros(len(b.tree_forge.leaves_object.data.vertices) * 3, np.float32)
     b.tree_forge.leaves_object.data.attributes["leaf_scale"].data.foreach_get("vector", sc)
     assert abs(sc.reshape(-1, 3)[:, 0].mean() - 1.0) < 0.2
+
+
+@check("複製した木を再生成しても、元の木の葉・インスタンス元を壊さない")
+def _():
+    a = new_tree(season=0.5)
+    la, n_a = a.tree_forge.leaves_object, len(a.tree_forge.leaves_object.data.vertices)
+    b = a.copy()
+    b.data = a.data.copy()
+    b.name = "Tree_copy"
+    bpy.context.collection.objects.link(b)
+    b.tree_forge.seed = 99
+    bpy.context.view_layer.objects.active = b
+    assert bpy.ops.treeforge.regenerate() == {"FINISHED"}
+    lb = b.tree_forge.leaves_object
+    assert lb != la and lb.parent == b and la.parent == a
+    assert len(la.data.vertices) == n_a, "元の木の葉は変わらない"
+    assert b.tree_forge.leaf_src != a.tree_forge.leaf_src
+    assert eval_instances(la) > 0 and eval_instances(lb) > 0
+
+
+@check("木の名前を変えても再生成で葉の子オブジェクトが増えない")
+def _():
+    obj = new_tree()
+    n = len(bpy.data.objects)
+    obj.name = "Oak_01"
+    bpy.ops.treeforge.regenerate()
+    assert len(bpy.data.objects) == n
+    assert obj.tree_forge.leaves_object.name == "Oak_01_Leaves"
+    assert obj.tree_forge.leaf_src.parent == obj and obj.tree_forge.leaf_src.get("tf_role") == "leaf_src"
+
+
+@check("自動再生成: live_update が有効なら値の変更で作り直す（高品質では作らない）")
+def _():
+    obj = new_tree()
+    pg = obj.tree_forge
+    pg.live_update = True
+    h0 = max(v.co.z for v in obj.data.vertices)
+    pg.height_m = 12.0
+    h1 = max(v.co.z for v in obj.data.vertices)
+    assert h0 > 18 and 11 < h1 < 12.5, (h0, h1)
+    pg.quality = "HERO"
+    n = len(obj.data.polygons)
+    pg.height_m = 15.0
+    assert len(obj.data.polygons) == n, "HERO では自動再生成しない"
+    # 太さ点の編集も（子グループの update から）エラーなく通る
+    pg.quality = "PREVIEW"
+    pg.trunk_profile_mode = "CUSTOM"
+    pg.profile[0].diameter_cm = 150.0
+    h2 = max(v.co.z for v in obj.data.vertices)
+    assert abs(h2 - 15.0) < 0.5
+
+
+@check("ひな形に割り当てた材質が、新規生成した木に引き継がれる")
+def _():
+    reset_scene()
+    sc = bpy.context.scene
+    props.write(sc.tree_forge, preset_io.builtin_overrides("keyaki"))
+    sc.tree_forge.initialized = True
+    sc.tree_forge.quality = "PREVIEW"
+    bark, leaf = bpy.data.materials.new("Tpl_Bark"), bpy.data.materials.new("Tpl_Leaf")
+    sc.tree_forge.materials.trunk = bark
+    sc.tree_forge.materials.leaf = leaf
+    bpy.ops.treeforge.generate()
+    obj = bpy.context.active_object
+    assert obj.tree_forge.materials.trunk == bark and obj.data.materials[0] == bark
+    assert obj.data.materials[3] == leaf and obj.data.materials[6] == bark
+    # 選択中の木から「新規」で作った木も引き継ぐ
+    bpy.ops.treeforge.generate()
+    assert bpy.context.active_object != obj and bpy.context.active_object.data.materials[0] == bark
 
 
 if __name__ == "__main__":
