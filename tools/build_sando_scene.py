@@ -228,20 +228,29 @@ def gravel():
     m = Mat("Sando_Gravel")
     pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
     vor = m.n("ShaderNodeTexVoronoi", y=0)
-    set_in(vor, "Scale", 55.0)
+    set_in(vor, "Scale", 20.0)                      # 粒 約 5 cm（旧 55 は約 1.8 cm で、遠目にアスファルトのように均一だった）
     m.link(pos, vor.inputs["Vector"])
     bw = m.n("ShaderNodeRGBToBW", y=200)
     m.link(vor.outputs["Color"], bw.inputs["Color"])
-    col = ramp(m, [(0.0, (0.20, 0.19, 0.17)), (0.5, (0.42, 0.40, 0.36)), (1.0, (0.62, 0.59, 0.54))],
+    col = ramp(m, [(0.15, (0.19, 0.17, 0.13)), (0.45, (0.42, 0.38, 0.31)), (0.70, (0.62, 0.56, 0.46))],
                bw.outputs["Val"], y=200)
     fine = noise(m, 220.0, 2.0, 0.5, pos, y=-200)
     bump = m.n("ShaderNodeBump", y=-100)
-    set_in(bump, "Strength", 0.9)
+    set_in(bump, "Strength", 2.0)
     set_in(bump, "Distance", 0.03)
-    hh = m.n("ShaderNodeMath", operation="ADD", y=-100)
-    m.link(vor.outputs["Distance"], hh.inputs[0])
-    m.link(fine.outputs["Fac"], hh.inputs[1])
-    set_in(hh, 1, 0.0)
+    # 粒を丸い凸にする: 中心 (Distance=0) が高く、継ぎ目 (Distance>=0.7) が低い
+    dome = m.n("ShaderNodeMapRange", y=-100)
+    dome.interpolation_type = "SMOOTHSTEP"
+    dome.clamp = True
+    set_in(dome, "From Min", 0.0)
+    set_in(dome, "From Max", 0.7)
+    set_in(dome, "To Min", 1.0)
+    set_in(dome, "To Max", 0.0)
+    m.link(vor.outputs["Distance"], dome.inputs["Value"])
+    hh = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=-100)
+    m.link(fine.outputs["Fac"], hh.inputs[0])
+    set_in(hh, 1, 0.15)
+    m.link(dome.outputs["Result"], hh.inputs[2])
     m.link(hh.outputs["Value"], bump.inputs["Height"])
     b = m.principled(rough=0.85, spec=0.2)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
@@ -254,14 +263,25 @@ def ground():
     m = Mat("Sando_Ground")
     pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
     mid = noise(m, 2.2, 6.0, 0.6, pos, y=0)
-    fine = noise(m, 40.0, 4.0, 0.5, pos, y=-200)
-    col = ramp(m, [(0.0, (0.055, 0.075, 0.025)), (0.45, (0.085, 0.11, 0.035)), (0.62, (0.13, 0.085, 0.045)),
-                   (1.0, (0.20, 0.12, 0.06))], mid.outputs["Fac"], y=200)
+    big = noise(m, 0.7, 4.0, 0.55, pos, y=100)          # 数 m 規模の大きなむら（苔の斑・落ち葉の吹き溜まり）
+    both = m.n("ShaderNodeMath", operation="ADD", y=100)
+    m.link(mid.outputs["Fac"], both.inputs[0])
+    m.link(big.outputs["Fac"], both.inputs[1])
+    avg = m.n("ShaderNodeMath", operation="MULTIPLY", y=100)
+    m.link(both.outputs["Value"], avg.inputs[0])
+    set_in(avg, 1, 0.5)
+    fine = noise(m, 18.0, 4.0, 0.5, pos, y=-200)
+    # 苔 / スギの落ち葉の茶 / 暗い土。Noise の Fac は 0.35〜0.65 に集中するので境目はその中に置く。
+    # 緑と茶で輝度差を付ける。砂利（参道）より約 20% 暗く保ち、参道を一番明るい導線にする
+    k = 1.4
+    cs = [(0.0, (0.05, 0.11, 0.02)), (0.30, (0.05, 0.11, 0.02)), (0.46, (0.20, 0.11, 0.05)),
+          (0.60, (0.07, 0.045, 0.03)), (1.0, (0.07, 0.045, 0.03))]
+    col = ramp(m, [(pos_, tuple(k * c for c in rgb)) for pos_, rgb in cs], avg.outputs["Value"], y=200)
     b = m.principled(rough=0.95, spec=0.0)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
     bump = m.n("ShaderNodeBump", y=-200)
-    set_in(bump, "Strength", 0.6)
-    set_in(bump, "Distance", 0.08)
+    set_in(bump, "Strength", 1.2)
+    set_in(bump, "Distance", 0.2)
     m.link(fine.outputs["Fac"], bump.inputs["Height"])
     m.link(bump.outputs["Normal"], b.inputs["Normal"])
     # 遠くの地面は空の地平の色に溶かす（地面の縁の一直線の水平線を消す）
@@ -279,13 +299,13 @@ def ground():
     return m.mat
 
 
-def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True, spec=0.1):
+def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True, spec=0.1, moss_scale=5.0, moss_range=(0.42, 0.6)):
     """御影石・安山岩: 個体ごとの濃淡（頂点属性 tint）、上向きの面に苔。"""
     m = Mat(name)
     pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
     geo = m.n("ShaderNodeNewGeometry", y=-400)
     fine = noise(m, 60.0, 5.0, 0.55, pos, y=200)
-    mid = noise(m, 5.0, 6.0, 0.6, pos, y=0)
+    mid = noise(m, moss_scale, 6.0, 0.6, pos, y=0)
     if use_tint:
         tint = m.n("ShaderNodeAttribute", attribute_type="GEOMETRY", attribute_name="tint", y=400)
         tint_out = tint.outputs["Fac"]
@@ -307,8 +327,11 @@ def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True, spec=0.1):
     nm = m.n("ShaderNodeMath", operation="ADD", y=-500)
     m.link(mid.outputs["Fac"], nm.inputs[0])
     set_in(nm, 1, moss_amount - 0.5)
-    m.link(smooth_range(m, nm.outputs["Value"], 0.42, 0.6, y=-500), prod.inputs[1])
-    moss = m.principled((0.05, 0.11, 0.022), 1.0, y=-100)
+    m.link(smooth_range(m, nm.outputs["Value"], moss_range[0], moss_range[1], y=-500), prod.inputs[1])
+    moss = m.principled(None, 1.0, y=-100)
+    mcol = ramp(m, [(0.0, (0.030, 0.070, 0.015)), (1.0, (0.070, 0.120, 0.030))], fine.outputs["Fac"], y=-100)
+    m.link(mcol.outputs["Color"], moss.inputs["Base Color"])        # 苔の色にも濃淡と凹凸を付ける
+    m.link(bump.outputs["Normal"], moss.inputs["Normal"])
     mix = m.mix_shader(prod.outputs["Value"], b, moss)
     m.link(mix.outputs["Shader"], m.out.inputs["Surface"])
     return m.mat
@@ -373,18 +396,20 @@ def build_path(col, length=150.0):
     # 石畳: 幅 2.4 m の 2 列。長さ・高さ・向きを少しずつ崩す
     bm = bmesh.new()
     tint = bm.verts.layers.float.new("tint")
-    y = y0 + 0.4
-    while y < y1 - 1.0:
-        L = float(rng.uniform(0.70, 1.00))
-        for cx in (-0.60, 0.60):
+    for cx in (-0.60, 0.60):
+        # 列ごとに板の長さと開始位置をずらす（2 列の継ぎ目が同じ y で全幅に通ると、枕木・梯子に見える）
+        y = y0 + 0.4 + (0.0 if cx < 0 else float(rng.uniform(0.3, 0.6)))
+        while y < y1 - 1.0:
+            L = float(rng.uniform(0.70, 1.00))
             w = 1.16 + float(rng.uniform(-0.03, 0.03))
-            vs = box(bm, (cx + rng.uniform(-0.015, 0.015), y + L / 2, 0.012 + rng.uniform(-0.012, 0.012)),
+            # 板の上面は砂利より約 3 cm 高い（旧版は 6〜8 cm で、手前の側面が階段のように見えた）
+            vs = box(bm, (cx + rng.uniform(-0.015, 0.015), y + L / 2, -0.03 + rng.uniform(-0.006, 0.006)),
                      (w, L, 0.12),
                      (math.radians(rng.normal(0, 0.35)), math.radians(rng.normal(0, 0.35)), math.radians(rng.normal(0, 0.8))))
             t = float(rng.uniform(0.0, 1.0))
             for v in vs:
                 v[tint] = t
-        y += L + 0.05
+            y += L + 0.05
     obj_from_bm("Sando_Slabs", bm, mats["stone"], col)
 
     # 縁石
@@ -425,7 +450,7 @@ def lantern(col, mat, loc, rot_z):
 
 
 def build_lanterns(col):
-    mat = stone("Sando_Lantern", 0.75, use_tint=False)
+    mat = stone("Sando_Lantern", 0.5, use_tint=False, moss_scale=13.0, moss_range=(0.35, 0.7))
     for i, y in enumerate((-30.0, -14.0, 2.0, 18.0, 34.0)):
         for sx in (-4.1, 4.1):
             lantern(col, mat, (sx, y + (1.5 if sx > 0 else 0.0), 0.0), math.radians(15 * i + (30 if sx > 0 else 0)))
@@ -463,6 +488,116 @@ def build_person(col, loc, yaw=0.0):
 # --------------------------------------------------------------------------------------
 # 木
 # --------------------------------------------------------------------------------------
+def soil():
+    m = Mat("Sando_Soil")
+    pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
+    mid = noise(m, 3.0, 5.0, 0.6, pos, y=0)
+    fine = noise(m, 35.0, 4.0, 0.5, pos, y=-200)
+    col = ramp(m, [(0.0, (0.045, 0.030, 0.020)), (0.5, (0.075, 0.048, 0.030)), (1.0, (0.12, 0.075, 0.040))],
+               mid.outputs["Fac"], y=200)
+    b = m.principled(rough=1.0, spec=0.0)
+    m.link(col.outputs["Color"], b.inputs["Base Color"])
+    bump = m.n("ShaderNodeBump", y=-200)
+    set_in(bump, "Strength", 0.8)
+    set_in(bump, "Distance", 0.05)
+    m.link(fine.outputs["Fac"], bump.inputs["Height"])
+    m.link(bump.outputs["Normal"], b.inputs["Normal"])
+    m.link(b.outputs["BSDF"], m.out.inputs["Surface"])
+    return m.mat
+
+
+def straw_rope():
+    """稲藁の縄: 縄の長さ方向に伸びた細かい凹凸。"""
+    m = Mat("Sando_Shimenawa")
+    pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
+    fine = noise(m, 1.0, 6.0, 0.6, mapping(m, pos, (45.0, 45.0, 45.0)).outputs["Vector"], y=0)
+    col = ramp(m, [(0.0, (0.26, 0.19, 0.08)), (0.5, (0.42, 0.32, 0.15)), (1.0, (0.58, 0.46, 0.24))],
+               fine.outputs["Fac"], y=200)
+    b = m.principled(rough=0.9, spec=0.1)
+    m.link(col.outputs["Color"], b.inputs["Base Color"])
+    bump = m.n("ShaderNodeBump", y=-200)
+    set_in(bump, "Strength", 1.2)
+    set_in(bump, "Distance", 0.02)
+    m.link(fine.outputs["Fac"], bump.inputs["Height"])
+    m.link(bump.outputs["Normal"], b.inputs["Normal"])
+    m.link(b.outputs["BSDF"], m.out.inputs["Surface"])
+    return m.mat
+
+
+def build_hero_marks(col, hero, p):
+    """御神木のしるしと接地感: 注連縄＋紙垂、根元の土盛りと落ち葉。
+    縄の半径は、その高さの幹の頂点の中心からの水平距離（95 パーセンタイル。最大値は樹皮の変位で突出する）に合わせる。"""
+    cx0, cy0 = float(hero.location.x), float(hero.location.y)
+    me = hero.data
+    co = np.empty(len(me.vertices) * 3)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    # --- 注連縄 ---
+    z = max(2.4, p.height_m * p.root_flare_height + 0.4)
+    ring = co[np.abs(co[:, 2] - z) < 0.15]
+    ring = ring[np.hypot(ring[:, 0], ring[:, 1]) < 4.0]                     # 近くを通る枝のスタブを除く
+    c = ring[:, :2].mean(axis=0)
+    R0 = float(np.percentile(np.hypot(ring[:, 0] - c[0], ring[:, 1] - c[1]), 95))
+    rr = 0.14
+    R = R0 + rr + 0.03
+    N, M = 96, 8
+    bm = bmesh.new()
+    vs = []
+    for i in range(N):
+        th = 2 * math.pi * i / N
+        cen = Vector((cx0 + c[0] + R * math.cos(th), cy0 + c[1] + R * math.sin(th), z + 0.05 * math.sin(3 * th)))
+        rad, up = Vector((math.cos(th), math.sin(th), 0.0)), Vector((0.0, 0.0, 1.0))
+        vs.append([bm.verts.new(cen + (rad * math.cos(2 * math.pi * j / M) + up * math.sin(2 * math.pi * j / M)) * rr)
+                   for j in range(M)])
+    for i in range(N):
+        a, b = vs[i], vs[(i + 1) % N]
+        for j in range(M):
+            bm.faces.new((a[j], a[(j + 1) % M], b[(j + 1) % M], b[j]))
+    obj_from_bm("Shimenawa", bm, straw_rope(), col, smooth=True)
+    # 紙垂: 縄の下に等間隔で 8 枚。折れ線にするため 2 段に分け、ずらす
+    rng = np.random.default_rng(5)
+    paper = paint("Sando_Shide", (0.75, 0.75, 0.72), 0.8)
+    bm = bmesh.new()
+    n_shide = 8
+    for i in range(n_shide):
+        th = 2 * math.pi * (i + 0.5) / n_shide + float(rng.uniform(-0.05, 0.05))
+        base = Vector((cx0 + c[0] + (R + 0.02) * math.cos(th), cy0 + c[1] + (R + 0.02) * math.sin(th),
+                       z - rr - float(rng.uniform(0.0, 0.1))))
+        tang = th + math.pi / 2
+        out = Vector((math.cos(th), math.sin(th), 0.0))
+        box(bm, base + Vector((0, 0, -0.11)) + out * 0.00, (0.18, 0.012, 0.22), (0, 0, tang))
+        box(bm, base + Vector((0, 0, -0.33)) + out * 0.045, (0.18, 0.012, 0.22), (0, 0, tang + 0.12))
+    obj_from_bm("Shide", bm, paper, col)
+    # --- 根元の土盛りと落ち葉 ---
+    from mathutils import noise as mnoise
+    bm = bmesh.new()
+    cen = Vector((cx0 + c[0], cy0 + c[1], -0.04))
+    sx, sy, sz = 3.1, 3.6, 0.26                                  # x 側は参道の縁石(x=3.28)の外に収める
+    verts = bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=16, radius=1.0,
+                                      matrix=Matrix.LocRotScale(cen, Euler((0, 0, 0)), Vector((sx, sy, sz))))["verts"]
+    for v in verts:
+        n = mnoise.noise(Vector((v.co.x * 0.9, v.co.y * 0.9, 3.0)))
+        v.co.x += (v.co.x - cen.x) * 0.10 * n
+        v.co.y += (v.co.y - cen.y) * 0.10 * n
+        v.co.z += 0.03 * n * max(v.co.z - cen.z, 0.0) / sz
+    obj_from_bm("Hero_Mound", bm, soil(), col, smooth=True)
+    litter = paint("Sando_Litter", (0.17, 0.075, 0.03), 0.95)
+    bm = bmesh.new()
+    n_made = 0
+    while n_made < 450:
+        ang = float(rng.uniform(0, 2 * math.pi))
+        rho = float(rng.uniform(1.4, 6.5))
+        lx, ly = cx0 + c[0] + rho * math.cos(ang), cy0 + c[1] + rho * math.sin(ang)
+        if lx < 3.6:                                             # 参道には散らさない
+            continue
+        u = ((lx - cen.x) / sx) ** 2 + ((ly - cen.y) / sy) ** 2
+        top = sz * math.sqrt(max(0.0, 1.0 - u)) - 0.04
+        box(bm, (lx, ly, max(top, -0.04) + 0.006), (float(rng.uniform(0.10, 0.2)), 0.035, 0.008),
+            (0, 0, float(rng.uniform(0, math.pi))))
+        n_made += 1
+    obj_from_bm("Hero_Litter", bm, litter, col)
+
+
 def make_tree(props, preset_io, sc, species, name, loc, yaw, bark, **ov):
     d = preset_io.builtin_overrides(species)
     d.update(ov)
@@ -501,7 +636,7 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
                 continue
             # 乱数は先に全部引く（途中で捨てても、残りの木の seed・形が変わらないように k も必ず進める）
             x = float(s * rng.uniform(8.0, 12.5))
-            y_ = float(y + rng.uniform(-3, 3))
+            y_ = float(y + rng.uniform(-1.5, 1.5))        # 隣の幹どうしが重ならない程度のゆらぎ
             H = float(rng.uniform(33, 47))
             yaw = float(rng.uniform(0, 6.28))
             dbh = float(rng.uniform(70, 115))
@@ -518,27 +653,33 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
             make_tree(props, preset_io, sc, "sugi", f"Cedar_{idx:02d}", (x, y_, 0.0), yaw, bark,
                       quality="MEDIUM" if abs(y_) < 34 else "PREVIEW", seed=int(100 + idx), height_m=H,
                       dbh_cm=dbh, crown_width_m=cw, crown_base_ratio=base, age_factor=age,
-                      leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0, foliage_amount=2.2)
+                      leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0, foliage_amount=2.2, leaf_max_instances=8000)
     # 右の空きを補う（視線の外側）
     for i, (x, y_) in enumerate(((17.5, 9.0), (19.0, 23.0))):
         make_tree(props, preset_io, sc, "sugi", f"Cedar_R{i}", (x, y_, 0.0), 0.7 * (i + 1), bark,
                   quality="MEDIUM", seed=int(300 + i), height_m=38.0 + 4 * i, dbh_cm=90.0 - 10 * i,
                   crown_width_m=8.0, crown_base_ratio=0.45, leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0,
-                  foliage_amount=2.2)
-    # 遠景の森: 参道の両側とその奥。低品質＋葉の数を絞って軽くする
+                  foliage_amount=2.2, leaf_max_instances=8000)
+    # 遠景の森: 参道の両側とその奥（地面は 1500 m 四方）。低品質＋葉の数を絞って軽くする。
+    # 樹高・枝下・傾きを散らして、同じ形の棒が並ばないようにする
     rng = np.random.default_rng(23)
     j = 0
     while j < n_forest:
         s = 1 if rng.random() < 0.5 else -1
-        x = s * float(rng.uniform(15.0, 70.0))
-        y = float(rng.uniform(-28.0, 150.0))            # カメラ(y=-44)の近くには置かない
-        if abs(x) < 17 or in_sight_line(x, y, 5.0):
+        x = s * float(rng.uniform(17.0, 110.0))
+        y = float(rng.uniform(20.0, 240.0))
+        H = float(rng.uniform(24.0, 50.0))
+        dbh = float(rng.uniform(55, 100))
+        cw = float(rng.uniform(6.0, 9.5))
+        base = float(rng.uniform(0.25, 0.55))
+        lean = float(rng.uniform(0.0, 5.0))
+        yaw = float(rng.uniform(0, 6.28))
+        if in_sight_line(x, y, 5.0):
             continue
-        make_tree(props, preset_io, sc, "sugi", f"Forest_{j:02d}", (x, y, 0.0), float(rng.uniform(0, 6.28)), bark,
-                  quality="PREVIEW", seed=int(500 + j), height_m=float(rng.uniform(28, 48)),
-                  dbh_cm=float(rng.uniform(55, 100)), crown_width_m=float(rng.uniform(6.0, 9.5)),
-                  crown_base_ratio=float(rng.uniform(0.35, 0.5)), leaf_scale=6.0, leaf_cluster=5, leaves_per_m=60.0,
-                  foliage_amount=2.0, leaf_max_instances=6000)
+        make_tree(props, preset_io, sc, "sugi", f"Forest_{j:03d}", (x, y, 0.0), yaw, bark,
+                  quality="PREVIEW", seed=int(500 + j), height_m=H, dbh_cm=dbh, crown_width_m=cw,
+                  crown_base_ratio=base, trunk_lean_deg=lean, leaf_scale=6.0, leaf_cluster=5, leaves_per_m=60.0,
+                  foliage_amount=2.0, leaf_max_instances=4000)
         j += 1
     return hero
 
@@ -680,8 +821,8 @@ def main(argv):
     ap.add_argument("--samples", type=int, default=96)
     ap.add_argument("--scale", type=float, default=1.0)
     ap.add_argument("--fog", type=float, default=0.0007)
-    ap.add_argument("--bg-trees", type=int, default=16)
-    ap.add_argument("--forest", type=int, default=36, help="遠景の森の本数")
+    ap.add_argument("--bg-trees", type=int, default=30, help="参道沿いの杉並木の本数（目安）")
+    ap.add_argument("--forest", type=int, default=140, help="遠景の森の本数")
     ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"))
     ap.add_argument("--save-blend", default="")
     ap.add_argument("--no-render", action="store_true")
@@ -701,7 +842,9 @@ def main(argv):
     build_person(env, (-1.6, 11.0, 0.0), 0.4)
     build_person(env, (4.6, -6.6, 0.0), 2.6)
     hero = build_trees(props, preset_io, sc, args.seed, args.hero_quality, args.bg_trees, args.forest)
-    hero_h = props.read(hero.tree_forge).height_m
+    hero_p = props.read(hero.tree_forge)
+    hero_h = hero_p.height_m
+    build_hero_marks(env, hero, hero_p)
     build_world_and_light(sc)
     if args.fog > 0:
         build_fog(env, args.fog)
