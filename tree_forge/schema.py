@@ -143,7 +143,7 @@ def _build() -> list[Param]:
           "断面を正円からずらす量。高さごとに向きと大きさが変わる", "trunk", True),
         P("branch_irregularity", "float", 0.25, 0.0, 1.0, "", "枝断面のいびつさ", "", "trunk"),
         # --- 損傷 ---
-        P("dead_branch_ratio", "float", 0.05, 0.0, 0.5, "", "枯れ枝の割合", "葉がつかない枝", "damage", True),
+        P("dead_branch_ratio", "float", 0.05, 0.0, 0.5, "", "枯れ枝の割合", "葉がつかない枝。樹冠の下側の枝ほど枯れやすい", "damage", True),
         P("broken_branch_ratio", "float", 0.08, 0.0, 0.6, "", "折れ枝の割合",
           "途中で折れた枝（折れ口がささくれる）。樹齢感で増減", "damage", True),
         P("broken_hang_ratio", "float", 0.3, 0.0, 1.0, "", "垂れ下がり折れ", "折れ枝のうち、先が垂れ下がって残る割合", "damage"),

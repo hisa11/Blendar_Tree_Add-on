@@ -551,10 +551,16 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
     co = co.reshape(-1, 3)
     # --- 注連縄 ---
     z = max(2.4, p.height_m * p.root_flare_height + 0.4)
-    ring = co[np.abs(co[:, 2] - z) < 0.15][:, :2]
-    d0 = np.hypot(ring[:, 0], ring[:, 1])
-    ring = ring[d0 < 1.5 * np.median(d0)]                                   # この高さにかかる枝のスタブの頂点を除く
-    c = ring.mean(axis=0)
+    bid = np.empty(len(me.vertices), dtype=np.int32)
+    me.attributes["branch_id"].data.foreach_get("value", bid)
+    trunk = co[bid == 0]                                                    # 幹の頂点だけ（枝・スタブの頂点で中心や半径がずれない）
+    w = 0.15
+    while True:                                                             # リングの間隔が粗い品質（PREVIEW は約 0.9 m）でも拾えるよう窓を広げる
+        ring = trunk[np.abs(trunk[:, 2] - z) < w][:, :2]
+        if len(ring) >= 24 or w > 3.0:
+            break
+        w *= 1.5
+    c = 0.5 * (ring.min(axis=0) + ring.max(axis=0))                         # 頂点の粗密に左右されない中心
     R0 = float(np.percentile(np.hypot(ring[:, 0] - c[0], ring[:, 1] - c[1]), 70))
     rr = 0.14
     R = R0 + 0.5 * rr                                          # 根張りの山にはかかり、谷では縄の半分が幹に埋まる（緩い輪に見えない）
@@ -570,7 +576,8 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
     for i in range(N):
         a, b = vs[i], vs[(i + 1) % N]
         for j in range(M):
-            bm.faces.new((a[j], a[(j + 1) % M], b[(j + 1) % M], b[j]))
+            bm.faces.new((a[j], b[j], b[(j + 1) % M], a[(j + 1) % M]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)                      # 法線は外向き
     if "shimenawa" in enabled:
         obj_from_bm("Shimenawa", bm, straw_rope(), subs["shimenawa"], smooth=True)
     else:
@@ -583,7 +590,7 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
     for i in range(n_shide):
         th = 2 * math.pi * (i + 0.5) / n_shide + float(rng.uniform(-0.05, 0.05))
         base = Vector((cx0 + c[0] + (R + 0.02) * math.cos(th), cy0 + c[1] + (R + 0.02) * math.sin(th),
-                       z - rr - float(rng.uniform(0.0, 0.1))))
+                       z + 0.05 * math.sin(3 * th) - 0.8 * rr + float(rng.uniform(-0.03, 0.03))))     # 縄の波打ちに合わせ、上端を縄にかける
         tang = th + math.pi / 2
         out = Vector((math.cos(th), math.sin(th), 0.0))
         box(bm, base + Vector((0, 0, -0.11)) + out * 0.00, (0.18, 0.012, 0.22), (0, 0, tang))
@@ -604,6 +611,8 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
         v.co.x += (v.co.x - cen.x) * 0.10 * n
         v.co.y += (v.co.y - cen.y) * 0.10 * n
         v.co.z += 0.03 * n * max(v.co.z - cen.z, 0.0) / sz
+    from mathutils.bvhtree import BVHTree
+    mound_bvh = BVHTree.FromBMesh(bm)                            # 落ち葉を、ノイズで凹凸の付いた土盛りの実表面に置くため
     if "mound" in enabled:
         obj_from_bm("Hero_Mound", bm, soil(), subs["mound"], smooth=True)
     else:
@@ -617,9 +626,12 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
         lx, ly = cx0 + c[0] + rho * math.cos(ang), cy0 + c[1] + rho * math.sin(ang)
         if lx < 3.6:                                             # 参道には散らさない
             continue
-        u = ((lx - cen.x) / sx) ** 2 + ((ly - cen.y) / sy) ** 2
-        top = sz * math.sqrt(max(0.0, 1.0 - u)) - 0.04
-        box(bm, (lx, ly, max(top, -0.04) + 0.006), (float(rng.uniform(0.10, 0.2)), 0.035, 0.008),
+        top = -0.04                                              # 地面の上面
+        if "mound" in enabled:
+            hit = mound_bvh.ray_cast(Vector((lx, ly, 1.0)), Vector((0.0, 0.0, -1.0)))[0]
+            if hit is not None:
+                top = max(top, hit.z)
+        box(bm, (lx, ly, top + 0.005), (float(rng.uniform(0.10, 0.2)), 0.035, 0.008),
             (0, 0, float(rng.uniform(0, math.pi))))
         n_made += 1
     if "litter" in enabled:

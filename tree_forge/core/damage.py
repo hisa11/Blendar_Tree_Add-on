@@ -68,24 +68,28 @@ def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator) -
 
 STUB_PROTRUDE = (0.3, 1.5)      # 幹の表面からスタブが突き出す長さ [m]
 STUB_RADIUS_FRAC = (0.05, 0.09)  # スタブ付け根の半径 / その高さの幹の半径
-STUB_Z_MIN = 1.2                 # これより低い所（根張り）には付けない
+STUB_Z_MIN = 1.2                 # これより低い所には付けない（根張りの高さのほうが高ければそちらまで）
 
 
 def add_trunk_stubs(p, sk: Skeleton, rng: np.random.Generator) -> None:
     """樹冠より下の裸の幹に、枯れて折れた枝の根元（スタブ）を足す。
 
     健全な骨格・半径・他の損傷の乱数には触れない（apply_damage の最後に、同じ rng の続きで引く）。
+    ただし三角形の予算は共有するので、予算で間引かれる木ではスタブの分だけ細い枝が少し減る。
+    また枝の本数が変わると、メッシャーの樹皮ノイズの乱数の割り当てが変わる（形・太さ・葉は変わらない）。
+    根張りの高さまでは付けない（根張りで幹の実際の半径が大きくなり、スタブが埋まるため）。
     """
     dens = p.trunk_stub_density
     hb = p.crown_base_ratio * p.height_m
-    if dens <= 0.0 or hb <= STUB_Z_MIN + 1.0:
+    z_lo = max(STUB_Z_MIN, p.root_flare_height * p.height_m)
+    if dens <= 0.0 or hb <= z_lo + 1.0:
         return
     for trunk in [a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed and a.radius is not None]:
         z_hi = min(hb * 0.97, float(trunk.pos[-1, 2]))
-        nn = int(dens * (z_hi - STUB_Z_MIN) + rng.random())
+        nn = int(dens * (z_hi - z_lo) + rng.random())
         if nn <= 0:
             continue
-        zs = np.sort(rng.uniform(STUB_Z_MIN, z_hi, nn))
+        zs = np.sort(rng.uniform(z_lo, z_hi, nn))
         phis = rng.uniform(0.0, 2.0 * np.pi) + np.arange(nn) * 2.399963 + rng.normal(0.0, 0.5, nn)
         for z, phi in zip(zs, phis):
             k = int(np.clip(np.searchsorted(trunk.pos[:, 2], z), 1, trunk.n - 2))

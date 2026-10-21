@@ -152,8 +152,10 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける。
         # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
-        extra.append(_place([a for a in live if a.level == 0 and not a.dead], per_m * 1.0, 0.82, rng, leaf_frac, theta, 0.25,
-                            surface=True))
+        s_pts, s_tg = _place([a for a in live if a.level == 0 and not a.dead], per_m * 1.0, 0.82, rng, leaf_frac, theta, 0.25,
+                             surface=True)
+        above = s_pts[:, 2] >= p.crown_base_ratio * p.height_m          # 幹分かれの下の幹（樹冠より下）には付けない
+        extra.append((s_pts[above], s_tg[above]))
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from tree_forge import schema
-from tree_forge.core import allometry, damage, envelope, pipeline, radius, rng, skeleton, tube_mesher
+from tree_forge.core import allometry, damage, envelope, leaf_points, pipeline, radius, rng, skeleton, tube_mesher
 
 from tests.unit.helpers import axis_rings, gen, mesh_hash, ring_radii, species_params
 
@@ -462,18 +462,64 @@ def test_leaf_start_moves_leaves_toward_tips():
     assert _leaf_n(leaf_start=0.0) > _leaf_n(leaf_start=0.2) > _leaf_n(leaf_start=0.6)
 
 
-def test_trunk_top_bears_leaves():
-    """幹の先端（上位 7%）の近くにも葉が付く。以前は幹が葉の対象外で、頂部が裸の針のように見えた。"""
-    for sid in ("sugi_giant", "sugi"):
-        t = gen(sid, quality="MEDIUM", leaf_max_instances=3_000_000)
-        a = t.skeleton.axes[0]
-        pos = a.pos[: (a.neck + 1 if a.neck >= 0 else a.n)]
-        seg = np.linalg.norm(np.diff(pos, axis=0), axis=1)
-        s = np.concatenate([[0.0], np.cumsum(seg)])
-        top = pos[s >= 0.93 * s[-1]]
-        lp = t.leaves.pos[t.leaves.is_leaf]
-        d = np.min(np.linalg.norm(lp[:, None, :] - top[None, :, :], axis=2), axis=1)
-        assert (d < 0.6).sum() >= 20, (sid, int((d < 0.6).sum()))
+def _point_to_polyline(pt, poly):
+    """点から折れ線への最短距離と、足の位置（弧上の節番号 + 線分内の比）。"""
+    a, b = poly[:-1], poly[1:]
+    ab = b - a
+    t = np.clip(np.sum((pt - a) * ab, axis=1) / np.maximum(np.sum(ab * ab, axis=1), 1e-12), 0.0, 1.0)
+    d = np.linalg.norm(pt - (a + ab * t[:, None]), axis=1)
+    k = int(np.argmin(d))
+    return float(d[k]), k, float(t[k])
+
+
+def test_stem_top_leaves_sit_on_the_bark_surface():
+    """幹の先端寄り（上位 18%）に付ける葉は、幹の中心線ではなく樹皮の表面（半径の 0.9 倍）に置く。
+    以前は幹が葉の対象外で、頂部が裸の針のように見えた。"""
+    t = gen("sugi_giant", quality="PREVIEW")
+    trunk = t.skeleton.axes[0]
+    rng = np.random.default_rng(0)
+    pts, tg = leaf_points._place([trunk], 80.0, 0.82, rng, 1.0, 0.1, 0.2, surface=True)
+    assert len(pts) > 100
+    s_arc = trunk.arc()
+    assert pts[:, 2].min() >= 0.82 * s_arc[-1] * 0.95                            # 先端寄りだけ
+    for pt in pts[:60]:
+        d, k, f = _point_to_polyline(pt, trunk.pos)
+        r = float(trunk.radius[k] * (1 - f) + trunk.radius[k + 1] * f)
+        assert abs(d - 0.9 * r) <= 0.02 + 0.05 * r, (d, r)
+    # generate() 全体でも、頂部の幹の近くに葉がある（枝の葉だけで済んでいないこと自体は上の単体で担保）
+    near_top = trunk.pos[trunk.arc() >= 0.93 * s_arc[-1]]
+    lp = t.leaves.pos[t.leaves.is_leaf]
+    dmin = np.min(np.linalg.norm(lp[:, None, :] - near_top[None, :, :], axis=2), axis=1)
+    assert (dmin < 0.8).sum() >= 20
+
+
+def test_generate_places_stem_top_leaves_on_the_surface(monkeypatch):
+    """generate() が幹の葉を表面（surface=True）に、先端寄り（u0 0.7〜0.9）から付けている。"""
+    calls = []
+    orig = leaf_points._place
+
+    def spy(axes, per_m, u0, *a, **k):
+        calls.append((list(axes), per_m, u0, k.get("surface", False)))
+        return orig(axes, per_m, u0, *a, **k)
+
+    monkeypatch.setattr(leaf_points, "_place", spy)
+    gen("sugi", quality="PREVIEW")
+    trunk = [c for c in calls if c[0] and all(a.level == 0 for a in c[0])]
+    assert len(trunk) == 1 and trunk[0][3] is True and 0.7 <= trunk[0][2] <= 0.9 and trunk[0][1] > 0
+
+
+def test_stem_top_leaves_not_on_the_bare_lower_trunk_of_split_trees():
+    """幹分かれの木（ケヤキ）では、分岐前の短い幹は樹冠より下にある。そこには葉を付けない。"""
+    t = gen("keyaki", quality="MEDIUM", season=0.5, trunk_split_count=3, trunk_split_height=0.3, crown_base_ratio=0.5)
+    hb = 0.5 * 20.0
+    lower = [a for a in t.skeleton.axes if a.level == 0 and a.pos[-1, 2] < hb]
+    assert lower, "分岐前の幹が樹冠より下で終わる設定のはず"
+    lp = t.leaves.pos[t.leaves.is_leaf]
+    for a in lower:
+        zs = a.pos[:, 2]
+        d = np.min(np.linalg.norm(lp[:, None, :] - a.pos[None, :, :], axis=2), axis=1)
+        low_leaf = lp[:, 2] < hb - 0.5
+        assert not np.any(low_leaf & (d < a.radius.max() * 1.05 + 0.05)), (zs.max(), int(np.sum(low_leaf & (d < 1.0))))
 
 
 def test_foliage_controls_do_not_change_branches():
@@ -498,6 +544,10 @@ def test_trunk_stubs_below_crown_base():
         reach = float(np.hypot(*(a.pos[-1, :2] - trunk.pos[a.parent_node, :2])))
         assert reach >= r_t + 0.25, (reach, r_t)                    # 幹の表面から確かに突き出す
         assert a.radius[0] > a.radius[-1] > 0.5 * a.radius[0]      # 折れ口は先細りしすぎない
+    # 根張りの高さより上にだけ付く（根張りで幹の実半径が大きく、スタブが埋まるため）
+    flared = gen("sugi", trunk_stub_density=2.0, root_flare_height=0.15, root_flare_scale=2.2, **kw)
+    stubs = [a for a in flared.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
+    assert stubs and min(a.pos[0][2] for a in stubs) >= 0.15 * 30.0 - 1e-6
     # 他の枝（骨格・半径・折れ）には触れない: スタブは最後に足されるだけ
     n0 = len(off.skeleton.axes)
     assert len(on.skeleton.axes) == n0 + len(low_on)
@@ -506,16 +556,24 @@ def test_trunk_stubs_below_crown_base():
         assert (a.dead, a.broken, a.neck) == (b.dead, b.broken, b.neck)
 
 
-def test_trunk_stub_density_default_off_and_dead_gradient():
+def test_trunk_stub_density_default_off():
     assert schema.BY_NAME["trunk_stub_density"].default == 0.0
-    # 樹冠の下側の枝ほど枯れやすい
-    t = gen("sugi_giant", quality="MEDIUM", dead_branch_ratio=0.2, trunk_stub_density=0.0)
-    l1 = [a for a in t.skeleton.axes if a.level == 1]
-    hb = 0.38 * 55.0
-    z = np.array([a.pos[0][2] for a in l1])
-    dead = np.array([a.dead for a in l1])
-    lower, upper = dead[z < hb + 0.4 * (55 - hb)].mean(), dead[z >= hb + 0.6 * (55 - hb)].mean()
-    assert lower > upper, (lower, upper)
+
+
+def test_lower_crown_branches_die_more_often():
+    """樹冠の下側の L1 の枝ほど枯れやすい。枝の本数を多くして、枯れる割合を下・上で直接比べる（実装を外すと落ちる）。"""
+    p = species_params("sugi_giant", quality="MEDIUM", l1_density=40.0, dead_branch_ratio=0.2, age_factor=1.5)
+    st = rng.make_streams(p.seed)
+    sk = skeleton.Skeleton()
+    skeleton._build_stems(p, st.skel, sk)
+    sp = skeleton._child_specs(p, [a for a in sk.axes if a.level == 0], 1, st.skel)
+    hb = p.crown_base_ratio * p.height_m
+    t = (sp["start"][:, 2] - hb) / (p.height_m - hb)
+    dead = sp["dead"]
+    lower, upper = dead[t < 0.33].mean(), dead[t > 0.67].mean()
+    assert (t < 0.33).sum() > 150 and (t > 0.67).sum() > 150
+    assert lower - upper > 0.08, (lower, upper)                           # 期待値は 0.46 対 0.29 前後
+    assert dead.mean() <= 0.6
 
 
 def test_giant_cedar_branch_and_leaf_balance():

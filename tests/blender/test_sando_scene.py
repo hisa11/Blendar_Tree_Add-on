@@ -63,6 +63,12 @@ def test_individual():
     assert r["bark"] == "Sando_SugiBark_Hero_NoMoss" and r["stubs"] == 0.0
 
 
+@check("参道: 粗い品質でも（リング間隔が広い PREVIEW、シード 2）注連縄の位置決めが落ちない")
+def test_preview_hero_does_not_crash():
+    r = run(["--hero-quality", "PREVIEW", "--seed", "2"])
+    assert r["objects"] == sorted(EXTRA_OBJECTS.values())
+
+
 if __name__ == "__main__":
     if "--child" in sys.argv:
         child(sys.argv[sys.argv.index("--child") + 1:])
