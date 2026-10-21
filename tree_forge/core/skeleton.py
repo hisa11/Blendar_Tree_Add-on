@@ -401,5 +401,21 @@ def build(p, st) -> Skeleton:
     # 刈り込みで縮んだ分を取り戻す。許容 4% の刈り込みと合わせて数回で収束する
     for _ in range(3):
         fit_dimensions(p, sk, 0.7, 1.4)
-        clip_to_envelope(p, sk, 1.04)
+        clip_to_envelope(p, sk, 1.0)
     return sk
+
+
+def fit_width(p, sk: Skeleton, lo: float = 0.95, hi: float = 1.05) -> None:
+    """損傷・間引きで枝先が失われた分の樹冠幅を、xy だけの拡大で取り戻す。
+
+    高さは触らない（太さプロファイルの高さ対応を保つ）。枝先は直前にエンベロープ ×1.0 で刈り込み済みなので、
+    拡大を ×1.05 までに限れば「枝先はエンベロープ ×1.05 以内」が常に保たれる。
+    """
+    _, w = measure(sk)
+    s = min(hi, max(lo, p.crown_width_m / max(w, 1e-6)))
+    if abs(s - 1.0) < 1e-3:
+        return
+    scale = np.array([s, s, 1.0])
+    for a in sk.axes:
+        if not a.removed:
+            a.pos = a.pos * scale

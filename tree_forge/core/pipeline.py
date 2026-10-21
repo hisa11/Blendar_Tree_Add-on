@@ -23,6 +23,7 @@ def generate(p) -> Tree:
     radius.compute_radii(p, sk)         # 健全な状態の太さ
     damage.apply_damage(p, sk, st)      # 折れ・垂れ下がり
     skeleton.enforce_budget(p, sk, st.skel)
+    skeleton.fit_width(p, sk)           # 失われた枝先の分だけ樹冠幅を合わせ直す
     mesh = tube_mesher.build_mesh(p, sk, st)
     leaves = leaf_points.generate(p, sk, st)
     return Tree(p, sk, mesh, leaves)
