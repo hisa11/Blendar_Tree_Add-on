@@ -534,10 +534,34 @@ def test_stem_top_leaves_not_on_the_bare_lower_trunk_of_split_trees():
         assert not np.any(low_leaf & (d < a.radius.max() * 1.05 + 0.05)), (zs.max(), int(np.sum(low_leaf & (d < 1.0))))
 
 
+def _leaf_offset_from_branches(t, n=1500):
+    """葉（房）の位置から、いちばん近い枝の節までの距離の平均 [m]。散らばりが大きいほど大きい。"""
+    nodes = np.concatenate([a.pos for a in t.skeleton.axes if not a.removed and a.level >= 1])
+    lp = t.leaves.pos[t.leaves.is_leaf]
+    pick = lp[np.random.default_rng(0).choice(len(lp), min(n, len(lp)), replace=False)]
+    d = np.min(np.linalg.norm(pick[:, None, :] - nodes[None, :, :], axis=2), axis=1)
+    return float(d.mean())
+
+
+def test_leaf_scatter_spreads_sprays_around_the_branch():
+    """房が枝の軸の上にそろうと、枝先ごとの固まり（芋虫状）になる。散らばりを上げると、枝から離れた位置にも房が付く。"""
+    kw = dict(quality="PREVIEW", leaf_max_instances=40_000)
+    d0 = _leaf_offset_from_branches(gen("sugi", leaf_scatter=0.0, **kw))
+    d1 = _leaf_offset_from_branches(gen("sugi", leaf_scatter=1.0, **kw))
+    assert d1 > d0 + 0.03, (d0, d1)
+    # 自動（-1）: 針葉(らせん)は 0.7、それ以外の葉は 0
+    a = gen("sugi", leaf_scatter=-1.0, **kw)
+    b = gen("sugi", leaf_scatter=0.7, **kw)
+    assert np.array_equal(a.leaves.pos, b.leaves.pos) and np.array_equal(a.leaves.quat, b.leaves.quat)
+    k_auto = gen("keyaki", leaf_scatter=-1.0, quality="PREVIEW")
+    k_zero = gen("keyaki", leaf_scatter=0.0, quality="PREVIEW")
+    assert np.array_equal(k_auto.leaves.pos, k_zero.leaves.pos)             # 広葉は従来どおり（出力が変わらない）
+
+
 def test_foliage_controls_do_not_change_branches():
     base = mesh_hash(gen("keyaki", quality="PREVIEW"))
     for ov in (dict(foliage_amount=3.0), dict(leaf_reach="ALL"), dict(leaf_start=0.0),
-               dict(leaf_max_instances=999)):
+               dict(leaf_max_instances=999), dict(leaf_scatter=1.2)):
         assert mesh_hash(gen("keyaki", quality="PREVIEW", **ov)) == base, ov
 
 

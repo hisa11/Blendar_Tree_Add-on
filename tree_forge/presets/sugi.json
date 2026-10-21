@@ -24,7 +24,7 @@
       "phyllotaxis": "SPIRAL",
       "angle_deg": 85,
       "droop": 0.2,
-      "density": 5.0,
+      "density": 6.0,
       "length_ratio": 1.0,
       "wobble": 0.12
     },
@@ -32,23 +32,24 @@
       "phyllotaxis": "SPIRAL",
       "angle_deg": 70,
       "droop": 0.4,
-      "density": 3.0,
+      "density": 5.0,
       "length_ratio": 0.45
     },
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 60,
       "droop": 0.5,
-      "density": 4.0,
+      "density": 7.0,
       "length_ratio": 0.4
     }
   ],
   "leaves": {
     "type": "NEEDLE_SPIRAL",
     "length_cm": 1.2,
-    "per_m": 60,
+    "per_m": 70,
     "cluster": 5,
-    "scale": 4.5,
+    "scale": 4.0,
+    "scatter": 1.0,
     "amount": 2.0,
     "geom": "CUTOUT_MESH",
     "evergreen": true,

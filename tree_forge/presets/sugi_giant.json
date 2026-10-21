@@ -51,6 +51,7 @@
     "per_m": 30,
     "cluster": 7,
     "scale": 5.5,
+    "scatter": 0.3,
     "start": 0.05,
     "amount": 3.0,
     "reach": "ALL",
