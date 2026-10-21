@@ -56,7 +56,7 @@ GREEN_LIGHT = [0.16, 0.36, 0.08]
 PRESETS = [
     sp("sugi", "スギ", "Cryptomeria japonica", 30, 80, 7.5, "conical", 0.12, 0.95, 0.6,
        [lv(85, 0.20, 5.0, 1.0, wobble=0.12), lv(70, 0.40, 3.0, 0.45), lv(60, 0.50, 4.0, 0.40)],
-       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 60, "cluster": 4, "scale": 4.0, "start": 0.1, "geom": "CUTOUT_MESH", "evergreen": True,
+       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 60, "cluster": 5, "scale": 4.5, "start": 0.1, "amount": 2.0, "geom": "CUTOUT_MESH", "evergreen": True,
         "color": [0.09, 0.24, 0.09], "autumn_color": [0.30, 0.20, 0.06]},
        {"type": "strip_peel", "displace_mm": 14},
        {"height_m": "M:自生50m(conifers.org)/園芸15-18m(MBG)の中間", "dbh_cm": "M:最大300cm の範囲内", "crown_width_m": "M:MBG 6-9m",
@@ -64,7 +64,8 @@ PRESETS = [
     sp("sugi_giant", "巨大スギ（御神木）", "Cryptomeria japonica", 55, 260, 16, "conical", 0.40, 0.85, 0.5,
        [lv(80, 0.35, 3.2, 1.0, wobble=0.30, var=14), lv(65, 0.50, 2.6, 0.45, wobble=0.35),
         lv(55, 0.60, 4.0, 0.40)],
-       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 70, "cluster": 5, "scale": 5.0, "start": 0.1, "geom": "CUTOUT_MESH",
+       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 70, "cluster": 7, "scale": 6.5, "start": 0.05, "amount": 3.0,
+        "reach": "ALL", "geom": "CUTOUT_MESH",
         "evergreen": True, "color": [0.08, 0.23, 0.09], "autumn_color": [0.30, 0.20, 0.06]},
        {"type": "strip_peel", "displace_mm": 60},
        {"height_m": "M:自生50(-65)m(conifers.org)の範囲内", "dbh_cm": "M:最大300cm(conifers.org)の範囲内",

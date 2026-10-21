@@ -474,7 +474,7 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
                       quality="MEDIUM" if near else "PREVIEW", seed=int(100 + k), height_m=H,
                       dbh_cm=float(rng.uniform(70, 115)), crown_width_m=float(rng.uniform(6.5, 9.5)),
                       crown_base_ratio=float(rng.uniform(0.38, 0.5)), age_factor=float(rng.uniform(0.9, 1.3)),
-                      leaf_scale=5.0, leaf_cluster=4, leaves_per_m=60.0)
+                      leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0, foliage_amount=2.2)
             k += 1
     # 遠景の森: 参道の両側とその奥。低品質＋葉の数を絞って軽くする
     rng = np.random.default_rng(23)
@@ -488,8 +488,8 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
         make_tree(props, preset_io, sc, "sugi", f"Forest_{j:02d}", (x, y, 0.0), float(rng.uniform(0, 6.28)), bark,
                   quality="PREVIEW", seed=int(500 + j), height_m=float(rng.uniform(28, 48)),
                   dbh_cm=float(rng.uniform(55, 100)), crown_width_m=float(rng.uniform(6.0, 9.5)),
-                  crown_base_ratio=float(rng.uniform(0.35, 0.5)), leaf_scale=5.5, leaf_cluster=4, leaves_per_m=60.0,
-                  leaf_max_instances=3500)
+                  crown_base_ratio=float(rng.uniform(0.35, 0.5)), leaf_scale=6.0, leaf_cluster=5, leaves_per_m=60.0,
+                  foliage_amount=2.0, leaf_max_instances=6000)
         j += 1
     return hero
 
