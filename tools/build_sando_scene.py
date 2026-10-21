@@ -8,6 +8,11 @@
   --samples N         Cycles のサンプル数（既定 96）   --scale 0.5  解像度の倍率
   --save-blend path   .blend も保存する
 
+御神木に「足したもの」は個別に切れる（既定はすべて入り）:
+  --no-shimenawa 注連縄  --no-shide 紙垂  --no-mound 根元の土盛り  --no-litter 根元の落ち葉
+  --no-bark-moss 幹の根元の苔  --no-stubs 枝下の枝痕（スタブ）  --no-extras 上の全部
+  .blend には Hero_Extras コレクションの下に項目ごとの子コレクションで入るので、Blender のアウトライナーでも切れる。
+
 シーン（単位 m）: 参道は +Y 方向に伸びる幅 約 6 m（中央に石畳、両脇に砂利と縁石）。主役の巨大スギは参道の右（x=+7）。
 両側に杉並木、石灯籠、遠景に鳥居、霧、人物（スケール確認用）。
 """
@@ -132,11 +137,11 @@ def smooth_range(m, value, lo, hi, x=None, y=0, clamp=True):
     return r.outputs["Result"]
 
 
-def sugi_bark(hero=False):
+def sugi_bark(hero=False, moss_on=True):
     """スギの樹皮: 縦に長い繊維状の剥離と深い縦溝、根元は苔。
     縞は UV でなく Object 座標で作る（UV は周方向のタイル数が整数に丸められる高さで位相が跳び、幹に横一文字の継ぎ目が出るため）。
     木ごとに縞の位相をずらす。hero=True は溝を約 2 倍粗くした御神木専用。"""
-    m = Mat("Sando_SugiBark_Hero" if hero else "Sando_SugiBark")
+    m = Mat(("Sando_SugiBark_Hero" if hero else "Sando_SugiBark") + ("" if moss_on else "_NoMoss"))
     obj = m.n("ShaderNodeTexCoord", y=-500).outputs["Object"]
     rnd0 = m.n("ShaderNodeObjectInfo", y=-450).outputs["Random"]
     ofs = m.n("ShaderNodeMath", operation="MULTIPLY", y=-450)
@@ -219,8 +224,11 @@ def sugi_bark(hero=False):
     moss = m.principled(rough=1.0, y=-250, x=500)
     m.link(mcol.outputs["Color"], moss.inputs["Base Color"])
     m.link(bump.outputs["Normal"], moss.inputs["Normal"])
-    mix = m.mix_shader(moss_mask, bark, moss, y=0)
-    m.link(mix.outputs["Shader"], m.out.inputs["Surface"])
+    if moss_on:
+        mix = m.mix_shader(moss_mask, bark, moss, y=0)
+        m.link(mix.outputs["Shader"], m.out.inputs["Surface"])
+    else:
+        m.link(bark.outputs["BSDF"], m.out.inputs["Surface"])
     return m.mat
 
 
@@ -348,9 +356,9 @@ def paint(name, color, rough=0.45):
 # --------------------------------------------------------------------------------------
 # ジオメトリ
 # --------------------------------------------------------------------------------------
-def new_collection(name):
+def new_collection(name, parent=None):
     col = bpy.data.collections.new(name)
-    bpy.context.scene.collection.children.link(col)
+    (parent if parent is not None else bpy.context.scene.collection).children.link(col)
     return col
 
 
@@ -525,9 +533,17 @@ def straw_rope():
     return m.mat
 
 
-def build_hero_marks(col, hero, p):
+EXTRAS = ("shimenawa", "shide", "mound", "litter")      # build_hero_marks で個別に切れるもの
+
+
+def build_hero_marks(hero, p, enabled=EXTRAS):
     """御神木のしるしと接地感: 注連縄＋紙垂、根元の土盛りと落ち葉。
     縄の半径は、その高さの幹の頂点の中心からの水平距離（95 パーセンタイル。最大値は樹皮の変位で突出する）に合わせる。"""
+    enabled = set(enabled)
+    if not enabled:
+        return
+    extras = new_collection("Hero_Extras")
+    subs = {k: new_collection(f"Hero_{k.capitalize()}", extras) for k in EXTRAS if k in enabled}
     cx0, cy0 = float(hero.location.x), float(hero.location.y)
     me = hero.data
     co = np.empty(len(me.vertices) * 3)
@@ -555,7 +571,10 @@ def build_hero_marks(col, hero, p):
         a, b = vs[i], vs[(i + 1) % N]
         for j in range(M):
             bm.faces.new((a[j], a[(j + 1) % M], b[(j + 1) % M], b[j]))
-    obj_from_bm("Shimenawa", bm, straw_rope(), col, smooth=True)
+    if "shimenawa" in enabled:
+        obj_from_bm("Shimenawa", bm, straw_rope(), subs["shimenawa"], smooth=True)
+    else:
+        bm.free()
     # 紙垂: 縄の下に等間隔で 8 枚。折れ線にするため 2 段に分け、ずらす
     rng = np.random.default_rng(5)
     paper = paint("Sando_Shide", (0.75, 0.75, 0.72), 0.8)
@@ -569,7 +588,10 @@ def build_hero_marks(col, hero, p):
         out = Vector((math.cos(th), math.sin(th), 0.0))
         box(bm, base + Vector((0, 0, -0.11)) + out * 0.00, (0.18, 0.012, 0.22), (0, 0, tang))
         box(bm, base + Vector((0, 0, -0.33)) + out * 0.045, (0.18, 0.012, 0.22), (0, 0, tang + 0.12))
-    obj_from_bm("Shide", bm, paper, col)
+    if "shide" in enabled:
+        obj_from_bm("Shide", bm, paper, subs["shide"])
+    else:
+        bm.free()
     # --- 根元の土盛りと落ち葉 ---
     from mathutils import noise as mnoise
     bm = bmesh.new()
@@ -582,7 +604,10 @@ def build_hero_marks(col, hero, p):
         v.co.x += (v.co.x - cen.x) * 0.10 * n
         v.co.y += (v.co.y - cen.y) * 0.10 * n
         v.co.z += 0.03 * n * max(v.co.z - cen.z, 0.0) / sz
-    obj_from_bm("Hero_Mound", bm, soil(), col, smooth=True)
+    if "mound" in enabled:
+        obj_from_bm("Hero_Mound", bm, soil(), subs["mound"], smooth=True)
+    else:
+        bm.free()
     litter = paint("Sando_Litter", (0.17, 0.075, 0.03), 0.95)
     bm = bmesh.new()
     n_made = 0
@@ -597,7 +622,10 @@ def build_hero_marks(col, hero, p):
         box(bm, (lx, ly, max(top, -0.04) + 0.006), (float(rng.uniform(0.10, 0.2)), 0.035, 0.008),
             (0, 0, float(rng.uniform(0, math.pi))))
         n_made += 1
-    obj_from_bm("Hero_Litter", bm, litter, col)
+    if "litter" in enabled:
+        obj_from_bm("Hero_Litter", bm, litter, subs["litter"])
+    else:
+        bm.free()
 
 
 def make_tree(props, preset_io, sc, species, name, loc, yaw, bark, **ov):
@@ -624,10 +652,11 @@ def in_sight_line(x, y, crown_w):
     return abs(x - sight) < 0.05 * (y - CAM_Y) + crown_w / 2 + 1.0
 
 
-def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0):
+def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0, hero_moss=True, hero_stubs=True):
     bark = sugi_bark()
-    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0, sugi_bark(hero=True),
-                     quality=hero_quality, seed=hero_seed)
+    hero_ov = {} if hero_stubs else {"trunk_stub_density": 0.0}
+    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0,
+                     sugi_bark(hero=True, moss_on=hero_moss), quality=hero_quality, seed=hero_seed, **hero_ov)
     rng = np.random.default_rng(11)
     sides = [-1, 1]
     ys = np.linspace(-62, 66, max(n_bg // 2, 2))
@@ -826,6 +855,13 @@ def main(argv):
     ap.add_argument("--bg-trees", type=int, default=30, help="参道沿いの杉並木の本数（目安）")
     ap.add_argument("--forest", type=int, default=140, help="遠景の森の本数")
     ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"))
+    ap.add_argument("--no-shimenawa", action="store_true", help="御神木の注連縄を付けない")
+    ap.add_argument("--no-shide", action="store_true", help="紙垂を付けない")
+    ap.add_argument("--no-mound", action="store_true", help="根元の土盛りを付けない")
+    ap.add_argument("--no-litter", action="store_true", help="根元の落ち葉を散らさない")
+    ap.add_argument("--no-bark-moss", action="store_true", help="御神木の幹の根元に苔を付けない")
+    ap.add_argument("--no-stubs", action="store_true", help="御神木の枝下の枝痕（スタブ）を付けない")
+    ap.add_argument("--no-extras", action="store_true", help="御神木に足したもの（上の全部）を付けない")
     ap.add_argument("--save-blend", default="")
     ap.add_argument("--no-render", action="store_true")
     ap.add_argument("--no-denoise", action="store_true")
@@ -843,10 +879,13 @@ def main(argv):
     build_torii(env)
     build_person(env, (-1.6, 11.0, 0.0), 0.4)
     build_person(env, (4.6, -6.6, 0.0), 2.6)
-    hero = build_trees(props, preset_io, sc, args.seed, args.hero_quality, args.bg_trees, args.forest)
+    off = {k for k in ("shimenawa", "shide", "mound", "litter") if args.no_extras or getattr(args, "no_" + k)}
+    hero = build_trees(props, preset_io, sc, args.seed, args.hero_quality, args.bg_trees, args.forest,
+                       hero_moss=not (args.no_extras or args.no_bark_moss),
+                       hero_stubs=not (args.no_extras or args.no_stubs))
     hero_p = props.read(hero.tree_forge)
     hero_h = hero_p.height_m
-    build_hero_marks(env, hero, hero_p)
+    build_hero_marks(hero, hero_p, [k for k in EXTRAS if k not in off])
     build_world_and_light(sc)
     if args.fog > 0:
         build_fog(env, args.fog)
