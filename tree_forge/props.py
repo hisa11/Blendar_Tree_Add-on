@@ -22,7 +22,10 @@ _applying = False       # プリセット適用中は update から再生成し�
 
 def _regen_if_live(pg) -> None:
     owner = pg.id_data
-    if isinstance(owner, bpy.types.Object) and pg.is_tree and pg.live_update and pg.quality != "HERO":
+    if not isinstance(owner, bpy.types.Object):          # シーンのひな形は再生成しない
+        return
+    tf = owner.tree_forge                                  # pg は太さ点などの子グループのこともある
+    if tf.is_tree and tf.live_update and tf.quality != "HERO":
         from .blender import build_mesh
         build_mesh.regenerate(bpy.context, owner)
 

@@ -180,9 +180,13 @@ def apply_all(obj, pg, ns, color_t=0.0):
             m = default_material(part, ns, obj.name, leaf_col)
         mats[part] = m
     me = obj.data
-    me.materials.clear()
-    for part in PARTS:
-        me.materials.append(mats[part])
+    # clear() すると全ポリゴンの material_index が 0 に戻るので、スロットは消さずにインデックスで差し替える
+    while len(me.materials) < len(PARTS):
+        me.materials.append(None)
+    while len(me.materials) > len(PARTS):
+        me.materials.pop(index=len(me.materials) - 1)
+    for i, part in enumerate(PARTS):
+        me.materials[i] = mats[part]
     leaves = pg.leaves_object
     if leaves is not None:
         mod = leaves.modifiers.get(gn_leaves.MODIFIER_NAME)
@@ -243,10 +247,15 @@ def build_from_folder(folder, name=None, unknown_normal_is_directx=False):
     mp.location = (-700, 0)
     nt.links.new(tc.outputs["UV"], mp.inputs["Vector"])
 
+    cache = {}
+
     def tex(kind, x, y, srgb):
-        t = _tex(nt, p(kind), x, y, srgb, kind)
-        nt.links.new(mp.outputs["Vector"], t.inputs["Vector"])
-        return t
+        """同じ種別は1枚だけ読み込む（ARM を AO と粗さ・金属で共有するため）。"""
+        if kind not in cache:
+            t = _tex(nt, p(kind), x, y, srgb, kind)
+            nt.links.new(mp.outputs["Vector"], t.inputs["Vector"])
+            cache[kind] = t
+        return cache[kind]
 
     base = tex("albedo", -450, 300, True)
     color_out = base.outputs["Color"]
@@ -275,7 +284,7 @@ def build_from_folder(folder, name=None, unknown_normal_is_directx=False):
     elif "arm" in found:
         sep = nt.nodes.new("ShaderNodeSeparateColor")
         sep.location = (-150, -400)
-        arm_t = tex("arm", -450, -450, False)
+        arm_t = tex("arm", -450, -300, False)
         nt.links.new(arm_t.outputs["Color"], sep.inputs["Color"])
         nt.links.new(sep.outputs["Green"], bsdf.inputs["Roughness"])
         nt.links.new(sep.outputs["Blue"], bsdf.inputs["Metallic"])
