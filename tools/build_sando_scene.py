@@ -628,8 +628,8 @@ def build_camera(sc, view, hero_height):
         loc, tgt = Vector((CAM_X, CAM_Y, 1.5)), Vector((5.4, 0.0, hero_height * 0.22))
         res = (1100, 1600)
     elif view == "crown":
-        cam.lens = 50
-        loc, tgt = Vector((-4.0, -30.0, 22.0)), Vector((7.4, 0.0, 37.0))
+        cam.lens = 32            # 樹高 55 m の先端まで収める（旧 50 mm・注視 37 m では上端が切れていた）
+        loc, tgt = Vector((-4.0, -30.0, 22.0)), Vector((7.4, 0.0, 38.5))
         res = (1300, 1000)
     else:
         cam.lens = 22
