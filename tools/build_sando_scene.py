@@ -538,7 +538,7 @@ EXTRAS = ("shimenawa", "shide", "mound", "litter")      # build_hero_marks で�
 
 def build_hero_marks(hero, p, enabled=EXTRAS):
     """御神木のしるしと接地感: 注連縄＋紙垂、根元の土盛りと落ち葉。
-    縄の半径は、その高さの幹の頂点の中心からの水平距離（95 パーセンタイル。最大値は樹皮の変位で突出する）に合わせる。"""
+    縄の半径は、その高さの幹の頂点の中心からの水平距離（70 パーセンタイル。最大値は樹皮の変位や根張りの山で突出する）に合わせる。"""
     enabled = set(enabled)
     if not enabled:
         return
@@ -555,9 +555,9 @@ def build_hero_marks(hero, p, enabled=EXTRAS):
     d0 = np.hypot(ring[:, 0], ring[:, 1])
     ring = ring[d0 < 1.5 * np.median(d0)]                                   # この高さにかかる枝のスタブの頂点を除く
     c = ring.mean(axis=0)
-    R0 = float(np.percentile(np.hypot(ring[:, 0] - c[0], ring[:, 1] - c[1]), 95))
+    R0 = float(np.percentile(np.hypot(ring[:, 0] - c[0], ring[:, 1] - c[1]), 70))
     rr = 0.14
-    R = R0 + rr + 0.03
+    R = R0 + 0.5 * rr                                          # 根張りの山にはかかり、谷では縄の半分が幹に埋まる（緩い輪に見えない）
     N, M = 96, 8
     bm = bmesh.new()
     vs = []
