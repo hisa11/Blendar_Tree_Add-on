@@ -43,9 +43,21 @@ def test_branch_tips_inside_envelope(sid):
     p = species_params(sid, broken_branch_ratio=0.0)
     t = pipeline.generate(p)
     tips = np.array([a.pos[-1] for a in t.skeleton.axes if a.level >= 1])
-    rho = np.hypot(tips[:, 0], tips[:, 1])
+    cx, cy = skeleton._center_fn(t.skeleton.axes[0])(tips[:, 2])         # エンベロープは幹の軸まわり
+    rho = np.hypot(tips[:, 0] - cx, tips[:, 1] - cy)
     inside = rho <= envelope.reach(p, tips[:, 2]) * 1.05 + 1e-6
     assert inside.mean() >= 0.95
+
+
+@pytest.mark.parametrize("sid,lean", [("sugi", 2.0), ("sugi", 12.0), ("sugi_giant", 1.0), ("hinoki", 6.0)])
+def test_conifer_crown_reaches_the_tip_even_when_the_trunk_leans(sid, lean):
+    """傾いた幹でも、梢の近くまで枝が付く。エンベロープを原点まわりに置いていた頃は、梢でエンベロープの半径（0.3〜0.9 m）より
+    幹のずれ（高さ 25 m・傾き 2° で 0.9 m）のほうが大きく、先端の枝がほとんど消えて裸の棒（高さの 17%）になっていた。"""
+    t = gen(sid, quality="MEDIUM", trunk_lean_deg=lean, broken_branch_ratio=0.0, dead_branch_ratio=0.0)
+    H = t.params.height_m
+    z = np.array([a.pos[0, 2] for a in t.skeleton.axes if a.level == 1])
+    assert (z > 0.85 * H).sum() >= 8, (sid, lean, int((z > 0.85 * H).sum()))      # 先端の 15% に枝が 8 本以上
+    assert z.max() >= 0.93 * H, (sid, lean, z.max())                              # いちばん高い枝の付け根が樹高の 93% 以上
 
 
 def test_determinism_and_stream_independence():

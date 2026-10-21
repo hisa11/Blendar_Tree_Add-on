@@ -146,11 +146,23 @@ def _horizontal(d: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     return np.where(n > 1e-6, h / np.maximum(n, 1e-12), fallback)
 
 
-def _ray_exit(p, start: np.ndarray, d: np.ndarray, lmax: float) -> np.ndarray:
-    """直線で伸ばしたとき、樹冠エンベロープの外へ出るまでの距離。"""
+def _center_fn(trunk: Axis):
+    """高さ z での幹の中心 (x, y)。樹冠エンベロープは幹の軸まわりに置く（原点まわりだと、傾いた幹の梢で枝が全部エンベロープの外になる）。
+    幹の先端より上は先端の位置、根元より下は根元の位置。"""
+    z = np.maximum.accumulate(trunk.pos[:, 2])
+    x, y = trunk.pos[:, 0], trunk.pos[:, 1]
+
+    def center(zq):
+        return np.interp(zq, z, x), np.interp(zq, z, y)
+    return center
+
+
+def _ray_exit(p, start: np.ndarray, d: np.ndarray, lmax: float, center) -> np.ndarray:
+    """直線で伸ばしたとき、樹冠エンベロープ（幹の軸まわり）の外へ出るまでの距離。"""
     ls = np.linspace(0.0, lmax, 40)
     pts = start[:, None, :] + d[:, None, :] * ls[None, :, None]
-    rho = np.hypot(pts[..., 0], pts[..., 1])
+    cx, cy = center(pts[..., 2])
+    rho = np.hypot(pts[..., 0] - cx, pts[..., 1] - cy)
     out = rho > envelope.reach(p, pts[..., 2]) + 1e-9
     out[:, 0] = False
     first = np.where(out.any(axis=1), out.argmax(axis=1), len(ls) - 1)
@@ -272,7 +284,7 @@ def _child_specs(p, parents: list[Axis], level: int, rng) -> dict | None:
     m = len(sp["parent"])
     if level == 1:
         lmax = max(p.height_m, p.crown_width_m) * 0.9
-        exit_len = _ray_exit(p, sp["start"], normalize(sp["dir"]), lmax)
+        exit_len = _ray_exit(p, sp["start"], normalize(sp["dir"]), lmax, _center_fn(parents[0]))
         length = exit_len * ratio * rng.uniform(0.85, 1.25, m)
         length = np.maximum(length, max(0.25, 0.02 * p.height_m))
         sp["out"] = _horizontal(sp["dir"], sp["out"])
@@ -332,10 +344,12 @@ def clip_to_envelope(p, sk: Skeleton, tol: float = 1.0) -> None:
     """エンベロープ（×tol）の外へ出た最初の節で枝を切る。幹・幹分かれの主枝は対象外。"""
     cm = sk.children_map()
     axes = [a for a in sk.axes if not a.removed and a.level != 0]
-    if axes:
+    trunk = next((a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed), None)
+    if axes and trunk is not None:
         # 枝ごとの切り詰めは他の枝の節の位置を動かさないので、全節のエンベロープ超過を最初に一括で求めてよい
         P_all = np.concatenate([a.pos for a in axes])
-        gap_all = np.hypot(P_all[:, 0], P_all[:, 1]) - envelope.reach(p, P_all[:, 2]) * tol      # 正ならエンベロープの外
+        cx, cy = _center_fn(trunk)(P_all[:, 2])                      # エンベロープは幹の軸まわり
+        gap_all = np.hypot(P_all[:, 0] - cx, P_all[:, 1] - cy) - envelope.reach(p, P_all[:, 2]) * tol      # 正ならエンベロープの外
         offs = np.concatenate([[0], np.cumsum([a.n for a in axes])])
         for a, o0, o1 in zip(axes, offs[:-1], offs[1:]):
             if a.removed:                       # 先に処理した親の切り詰めで子ごと消えた
