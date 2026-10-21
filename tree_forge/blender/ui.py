@@ -56,6 +56,7 @@ class TREEFORGE_PT_main(_Panel):
             col.label(text=f"胸高直径(1.3 m): {allometry.profile_dbh_cm(ns):.1f} cm（太さプロファイルから）")
         lay.prop(pg, "crown_shape")
         lay.prop(pg, "season", slider=True)
+        lay.prop(pg, "foliage_amount", slider=True)
         lay.prop(pg, "age_factor", slider=True)
         lay.prop(pg, "leaf_geom")
         row = lay.row(align=True)
@@ -165,8 +166,11 @@ class TREEFORGE_PT_leaf(_Panel):
 
     def draw(self, context):
         pg, _ = _group(context)
-        _draw_params(self.layout, pg, "leaf", skip=() if pg.advanced else
-                     ("fascicle_count", "leaf_scale_var", "leaf_width_ratio", "bark_type"))
+        hidden = ("foliage_amount",)                       # 主パネルにある
+        if not pg.advanced:
+            hidden += ("fascicle_count", "leaf_scale_var", "leaf_width_ratio", "bark_type", "leaf_reach",
+                       "leaf_start", "leaf_max_instances")
+        _draw_params(self.layout, pg, "leaf", skip=hidden)
         if pg.leaf_geom == "CUSTOM_OBJECT":
             self.layout.prop(pg, "leaf_object")
 

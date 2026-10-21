@@ -233,7 +233,6 @@ def _group(p, axs, V, dist, dmax, rng, h_root):
 
 
 def build_mesh(p, sk: Skeleton, st) -> MeshData:
-    qual = allometry.quality_table(p.quality)
     rng = st.bark
     dist: list[np.ndarray] = []
     for ax in sk.axes:

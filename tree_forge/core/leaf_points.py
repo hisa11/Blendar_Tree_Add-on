@@ -106,32 +106,46 @@ def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: flo
     return fwd, hint, radial
 
 
+MAX_BOOST = 2.5          # 上限に達したとき、1枚あたりを大きくする倍率の上限
+
+
+def _sub_levels(sk: Skeleton, depth: int):
+    """末端レベルから depth 段手前（>=1）の、枯れていない軸。"""
+    live = [a for a in sk.axes if not a.removed]
+    lv = max(a.level for a in live) - depth
+    return [a for a in live if not a.dead and a.level == lv and a.level >= 1]
+
+
 def generate(p, sk: Skeleton, st) -> LeafData:
     rng = st.leaves
     flowering = p.flower_density > 0.0
     leaf_frac, flower_frac, color_t = season_state(p.season, p.evergreen, flowering)
-    cap = allometry.quality_table(p.quality)["leaf_cap"]
+    cap = p.leaf_max_instances or allometry.quality_table(p.quality)["leaf_cap"]
     axes = _bearing_axes(sk)
 
     parts_pos, parts_quat, parts_scale, parts_leaf, parts_var = [], [], [], [], []
 
     # --- 葉 ---
-    if leaf_frac > 0.01:
+    if leaf_frac > 0.01 and p.foliage_amount > 0.0:
         theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
-        u0 = 0.1 if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG") else (0.5 if p.leaf_type == "NEEDLE_FASCICLE" else 0.2)
-        pts, tg = _place(axes, p.leaves_per_m, u0, rng, leaf_frac, theta, 0.25)
-        if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE"):
-            # 針葉樹は末端の一段手前の枝の外側半分にも付ける（量感）
-            top = max(a.level for a in sk.axes if not a.removed)
-            sub = [a for a in sk.axes if not a.removed and not a.dead and a.level == top - 1 and a.level >= 1]
-            pts2, tg2 = _place(sub, p.leaves_per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25)
-            pts, tg = np.concatenate([pts, pts2]), np.concatenate([tg, tg2])
+        per_m = p.leaves_per_m * p.foliage_amount
+        pts, tg = _place(axes, per_m, p.leaf_start, rng, leaf_frac, theta, 0.25)
+        reach = p.leaf_reach
+        if reach == "AUTO":
+            reach = "OUTER" if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE") else "TERMINAL"
+        extra = []
+        if reach in ("OUTER", "ALL"):                      # 末端の一段手前の枝の外側半分（量感）
+            extra.append(_place(_sub_levels(sk, 1), per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
+        if reach == "ALL":                                  # さらに手前の枝の外側 40%
+            extra.append(_place(_sub_levels(sk, 2), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
+        for e_pts, e_tg in extra:
+            pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)
         boost = 1.0
         if n > cap:
             keep = np.sort(rng.choice(n, cap, replace=False))
             pts, tg = pts[keep], tg[keep]
-            boost = math.sqrt(n / cap)
+            boost = min(MAX_BOOST, math.sqrt(n / cap))
             n = len(pts)
         if n:
             fwd, hint, _ = _orient(tg, rng, theta, 0.25, 1.0)

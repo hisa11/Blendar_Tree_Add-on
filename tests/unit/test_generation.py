@@ -403,3 +403,57 @@ def test_bark_ridge_count_follows_circumference(quality, radius, expected):
     spec = np.abs(np.fft.rfft(r - r.mean()))
     k = int(np.argmax(spec[2:V // 2])) + 2
     assert abs(k - expected) <= 2, (V, k, expected)
+
+
+# --- 葉の量 --------------------------------------------------------------------------
+UNCAPPED = dict(quality="MEDIUM", leaf_max_instances=3_000_000)
+
+
+def _leaf_n(sid="keyaki", **ov):
+    return int(gen(sid, **{**UNCAPPED, **ov}).leaves.is_leaf.sum())
+
+
+def test_foliage_amount_scales_leaf_count_linearly():
+    n1 = _leaf_n(foliage_amount=1.0)
+    assert _leaf_n(foliage_amount=0.0) == 0
+    assert _leaf_n(foliage_amount=0.5) == pytest.approx(0.5 * n1, rel=0.08)
+    assert _leaf_n(foliage_amount=2.0) == pytest.approx(2.0 * n1, rel=0.08)
+    assert _leaf_n(foliage_amount=4.0) == pytest.approx(4.0 * n1, rel=0.08)
+
+
+def test_foliage_amount_beyond_cap_enlarges_leaves_instead():
+    """上限に達したら数を増やせないので、1枚あたりを大きくして密度感を保つ（上限 2.5 倍）。"""
+    a = gen("keyaki", quality="PREVIEW", foliage_amount=1.0).leaves
+    b = gen("keyaki", quality="PREVIEW", foliage_amount=3.0).leaves
+    assert a.n == b.n == allometry.quality_table("PREVIEW")["leaf_cap"]
+    assert b.scale[:, 0].mean() > 1.4 * a.scale[:, 0].mean()
+    c = gen("keyaki", quality="PREVIEW", foliage_amount=5.0).leaves
+    assert c.scale[:, 0].mean() <= 2.6 * a.scale[:, 0].mean()
+
+
+def test_leaf_max_instances_overrides_quality_cap():
+    lo = gen("keyaki", quality="MEDIUM", leaf_max_instances=5000).leaves
+    assert lo.is_leaf.sum() == 5000
+    hi = gen("keyaki", quality="PREVIEW", leaf_max_instances=60_000, foliage_amount=3.0).leaves
+    assert hi.is_leaf.sum() > allometry.quality_table("PREVIEW")["leaf_cap"]
+    assert hi.is_leaf.sum() <= 60_000
+
+
+def test_leaf_reach_extends_to_inner_branches():
+    for sid in ("keyaki", "sugi_giant"):
+        t, o, a = (_leaf_n(sid, leaf_reach=r) for r in ("TERMINAL", "OUTER", "ALL"))
+        assert t < o <= a, (sid, t, o, a)
+    # AUTO: 針葉は OUTER、広葉は TERMINAL（従来の挙動）
+    assert _leaf_n("sugi_giant", leaf_reach="AUTO") == _leaf_n("sugi_giant", leaf_reach="OUTER")
+    assert _leaf_n("keyaki", leaf_reach="AUTO") == _leaf_n("keyaki", leaf_reach="TERMINAL")
+
+
+def test_leaf_start_moves_leaves_toward_tips():
+    assert _leaf_n(leaf_start=0.0) > _leaf_n(leaf_start=0.2) > _leaf_n(leaf_start=0.6)
+
+
+def test_foliage_controls_do_not_change_branches():
+    base = mesh_hash(gen("keyaki", quality="PREVIEW"))
+    for ov in (dict(foliage_amount=3.0), dict(leaf_reach="ALL"), dict(leaf_start=0.0),
+               dict(leaf_max_instances=999)):
+        assert mesh_hash(gen("keyaki", quality="PREVIEW", **ov)) == base, ov

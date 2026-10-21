@@ -103,5 +103,42 @@ def _():
     assert any(n == "label" and "m" in k.get("text", "") for n, _, k in lay_log)
 
 
+def drawn_props(ctx, idname):
+    """パネル idname が layout.prop で描いたプロパティ名の集合。"""
+    log = []
+    cls = next(c for c in ui.CLASSES if getattr(c, "bl_idname", "") == idname)
+    cls.draw(type("P", (), {"layout": FakeLayout(log)})(), ctx)
+    return {a[1] for n, a, _ in log if n == "prop"}
+
+
+@check("UI: 葉の量は主パネル、付き始め・最大数・付ける枝は詳細モードのときだけ（docs/PARAMETERS.md の記述どおり）")
+def _():
+    ctx = setup(False)
+    pg = ctx.scene.tree_forge
+    pg.advanced = False
+    assert "foliage_amount" in drawn_props(ctx, "TREEFORGE_PT_main")
+    simple_leaf = drawn_props(ctx, "TREEFORGE_PT_leaf")
+    assert {"leaves_per_m", "leaf_cluster", "leaf_scale"} <= simple_leaf
+    assert not ({"leaf_start", "leaf_max_instances", "leaf_reach", "foliage_amount"} & simple_leaf)
+    pg.advanced = True
+    adv_leaf = drawn_props(ctx, "TREEFORGE_PT_leaf")
+    assert {"leaf_start", "leaf_max_instances", "leaf_reach"} <= adv_leaf and "foliage_amount" not in adv_leaf
+    assert {"broken_pos_min", "top_break_height"} <= drawn_props(ctx, "TREEFORGE_PT_natural")
+    pg.advanced = False
+    assert not ({"broken_pos_min", "top_break_height"} & drawn_props(ctx, "TREEFORGE_PT_natural"))
+
+
+@check("UI: 葉の量を変えて再生成すると、葉インスタンス数が増える")
+def _():
+    ctx = setup(True, leaf_max_instances=2_000_000, season=0.5)
+    obj = ctx.active_object
+    lo = obj.tree_forge.leaves_object
+    n1 = len(lo.data.vertices)
+    obj.tree_forge.foliage_amount = 2.0
+    bpy.ops.treeforge.regenerate()
+    n2 = len(obj.tree_forge.leaves_object.data.vertices)
+    assert 1.8 < n2 / n1 < 2.2, (n1, n2)
+
+
 if __name__ == "__main__":
     sys.exit(1 if run_all() else 0)

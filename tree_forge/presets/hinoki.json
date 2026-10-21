@@ -49,6 +49,7 @@
     "width_ratio": 0.35,
     "per_m": 40,
     "scale": 1.6,
+    "start": 0.1,
     "geom": "CUTOUT_MESH",
     "evergreen": true,
     "color": [
