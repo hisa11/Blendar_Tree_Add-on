@@ -22,8 +22,8 @@ def _raw(shape: str, t: np.ndarray) -> np.ndarray:
         return (0.22 + 0.78 * t ** 0.75) * np.sqrt(np.clip(1 - t ** 5, 0, 1))
     if shape == "umbrella":  # 低い枝は短く、上部が平たく広い
         return (0.30 + 0.70 * t ** 0.55) * np.sqrt(np.clip(1 - t ** 9, 0, 1))
-    if shape == "weeping":  # 低い位置まで広く、枝が垂れ下がる
-        return (np.sin(np.pi * np.clip(t, 1e-6, 1) ** 0.6) ** 0.7) * 0.9 + 0.2 * (1 - t)
+    if shape == "weeping":  # 低い位置まで広く、枝が垂れ下がる。頂部は丸いドーム（細いと、幹の先が裸で突き出る）
+        return (np.sin(np.pi * np.clip(t, 1e-6, 1) ** 0.75) ** 0.55) * 0.9 + 0.2 * (1 - t)
     if shape == "irregular":
         base = np.sqrt(np.clip(1 - (2 * t - 1) ** 2, 0, 1)) + 0.12
         return base * (0.78 + 0.22 * np.sin(5.3 * t + 1.1) * np.cos(2.1 * t))
