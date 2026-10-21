@@ -31,6 +31,7 @@ def _raw(shape: str, t: np.ndarray) -> np.ndarray:
 
 
 _TABLES: dict[str, np.ndarray] = {}
+_XS = np.linspace(0.0, 1.0, _N)       # 表の横軸（毎回作ると枝ごとの呼び出しで遅い）
 
 
 def _table(shape: str) -> np.ndarray:
@@ -46,7 +47,7 @@ def _table(shape: str) -> np.ndarray:
 def shape_value(shape: str, t: np.ndarray) -> np.ndarray:
     """t∈[0,1] での正規化エンベロープ（最大値 1）。t は範囲外ならクランプ。"""
     tb = _table(shape)
-    return np.interp(np.clip(t, 0.0, 1.0), np.linspace(0.0, 1.0, _N), tb)
+    return np.interp(np.clip(t, 0.0, 1.0), _XS, tb)
 
 
 def reach(p, z: np.ndarray) -> np.ndarray:

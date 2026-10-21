@@ -53,26 +53,22 @@ def mat_to_euler_xyz(R: np.ndarray) -> np.ndarray:
 
 def mat_to_quat(R: np.ndarray) -> np.ndarray:
     """(N,3,3) → (N,4) 四元数 (w,x,y,z)。Blender の QUATERNION 属性の並びに合わせる。"""
-    N = R.shape[0]
-    q = np.empty((N, 4))
-    tr = R[:, 0, 0] + R[:, 1, 1] + R[:, 2, 2]
-    # 4通りの分岐を全要素で計算し、最大の対角成分で選ぶ（Shepperd）
-    cand = np.stack([tr, R[:, 0, 0], R[:, 1, 1], R[:, 2, 2]], axis=1)
-    k = np.argmax(cand, axis=1)
-    for i in range(N):
-        m = R[i]
-        if k[i] == 0:
-            s = np.sqrt(max(tr[i] + 1.0, 0.0)) * 2
-            q[i] = (0.25 * s, (m[2, 1] - m[1, 2]) / s, (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s)
-        elif k[i] == 1:
-            s = np.sqrt(max(1.0 + m[0, 0] - m[1, 1] - m[2, 2], 0.0)) * 2
-            q[i] = ((m[2, 1] - m[1, 2]) / s, 0.25 * s, (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s)
-        elif k[i] == 2:
-            s = np.sqrt(max(1.0 + m[1, 1] - m[0, 0] - m[2, 2], 0.0)) * 2
-            q[i] = ((m[0, 2] - m[2, 0]) / s, (m[0, 1] + m[1, 0]) / s, 0.25 * s, (m[1, 2] + m[2, 1]) / s)
-        else:
-            s = np.sqrt(max(1.0 + m[2, 2] - m[0, 0] - m[1, 1], 0.0)) * 2
-            q[i] = ((m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, 0.25 * s)
+    m00, m01, m02 = R[:, 0, 0], R[:, 0, 1], R[:, 0, 2]
+    m10, m11, m12 = R[:, 1, 0], R[:, 1, 1], R[:, 1, 2]
+    m20, m21, m22 = R[:, 2, 0], R[:, 2, 1], R[:, 2, 2]
+    tr = m00 + m11 + m22
+    # 4通りの分岐を全要素で計算し、最大の対角成分で選ぶ（Shepperd）。選ばれない分岐の 0 割りは無視する
+    k = np.argmax(np.stack([tr, m00, m11, m22], axis=1), axis=1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        s0 = np.sqrt(np.maximum(tr + 1.0, 0.0)) * 2
+        q0 = np.stack([0.25 * s0, (m21 - m12) / s0, (m02 - m20) / s0, (m10 - m01) / s0], axis=1)
+        s1 = np.sqrt(np.maximum(1.0 + m00 - m11 - m22, 0.0)) * 2
+        q1 = np.stack([(m21 - m12) / s1, 0.25 * s1, (m01 + m10) / s1, (m02 + m20) / s1], axis=1)
+        s2 = np.sqrt(np.maximum(1.0 + m11 - m00 - m22, 0.0)) * 2
+        q2 = np.stack([(m02 - m20) / s2, (m01 + m10) / s2, 0.25 * s2, (m12 + m21) / s2], axis=1)
+        s3 = np.sqrt(np.maximum(1.0 + m22 - m00 - m11, 0.0)) * 2
+        q3 = np.stack([(m10 - m01) / s3, (m02 + m20) / s3, (m12 + m21) / s3, 0.25 * s3], axis=1)
+    q = np.choose(k[:, None], [q0, q1, q2, q3])
     return q / np.linalg.norm(q, axis=1, keepdims=True)
 
 
