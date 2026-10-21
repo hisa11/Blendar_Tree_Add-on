@@ -27,7 +27,7 @@ def child(flags):
         "objects": sorted(o.name for o in bpy.data.objects if o.name in EXTRA_OBJECTS.values()),
         "collections": sorted(c.name for c in bpy.data.collections if c.name.startswith("Hero_")),
         "bark": [m.name for m in hero.data.materials if m][0],
-        "stubs": hero.tree_forge.trunk_stub_density,
+        "stubs": hero.tree_forge.trunk_stubs,
     }))
 
 
@@ -44,14 +44,14 @@ def test_all_on():
     r = run([])
     assert r["objects"] == sorted(EXTRA_OBJECTS.values())
     assert r["collections"] == ["Hero_Extras", "Hero_Litter", "Hero_Mound", "Hero_Shide", "Hero_Shimenawa"]
-    assert r["bark"] == "Sando_SugiBark_Hero" and r["stubs"] > 0
+    assert r["bark"] == "Sando_SugiBark_Hero" and r["stubs"] is True
 
 
 @check("参道: --no-extras で飾りが全部消え、元の木だけになる")
 def test_no_extras():
     r = run(["--no-extras"])
     assert r["objects"] == [] and r["collections"] == []
-    assert r["bark"].endswith("_NoMoss") and r["stubs"] == 0.0
+    assert r["bark"].endswith("_NoMoss") and r["stubs"] is False
 
 
 @check("参道: 項目ごとに個別に切れる")
@@ -60,7 +60,7 @@ def test_individual():
     assert r["objects"] == ["Hero_Mound", "Shide"] and "Hero_Shimenawa" not in r["collections"]
     r = run(["--no-shide", "--no-mound", "--no-bark-moss", "--no-stubs"])
     assert r["objects"] == ["Hero_Litter", "Shimenawa"]
-    assert r["bark"] == "Sando_SugiBark_Hero_NoMoss" and r["stubs"] == 0.0
+    assert r["bark"] == "Sando_SugiBark_Hero_NoMoss" and r["stubs"] is False
 
 
 @check("参道: 粗い品質でも（リング間隔が広い PREVIEW、シード 2）注連縄の位置決めが落ちない")

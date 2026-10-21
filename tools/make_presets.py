@@ -75,7 +75,7 @@ PRESETS = [
               "root_flare_scale": 1.4, "root_count": 6, "burl_density": 0.6, "trunk_irregularity": 0.5,
               "branch_irregularity": 0.3},
        damage={"age_factor": 1.5, "dead_branch_ratio": 0.12, "broken_branch_ratio": 0.10, "broken_hang_ratio": 0.35,
-               "trunk_stub_density": 0.5},
+               "trunk_stubs": True, "trunk_stub_density": 0.5},
        profile=[[0.0, 300], [0.012, 272], [0.03, 258], [0.12, 244], [0.40, 214], [0.70, 150], [0.90, 70], [1.0, 8]]),
     sp("hinoki", "ヒノキ", "Chamaecyparis obtusa", 25, 60, 7, "conical", 0.10, 0.9, 0.5,
        [lv(70, 0.20, 5.0, 1.0, wobble=0.15), lv(60, 0.30, 3.0, 0.45), lv(55, 0.40, 4.0, 0.40)],

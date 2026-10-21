@@ -113,7 +113,10 @@ class TREEFORGE_PT_natural(_Panel):
         col.prop(pg, "broken_branch_ratio", slider=True)
         col.prop(pg, "broken_hang_ratio", slider=True)
         col.prop(pg, "dead_branch_ratio", slider=True)
-        col.prop(pg, "trunk_stub_density")
+        col.prop(pg, "trunk_stubs")
+        sub = col.column(align=True)
+        sub.active = pg.trunk_stubs                                 # オフのときは数の欄を薄くする
+        sub.prop(pg, "trunk_stub_density")
         if pg.advanced:
             col.prop(pg, "broken_pos_min")
             col.prop(pg, "broken_pos_max")

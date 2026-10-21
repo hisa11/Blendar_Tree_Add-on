@@ -82,7 +82,7 @@ def add_trunk_stubs(p, sk: Skeleton, rng: np.random.Generator) -> None:
     dens = p.trunk_stub_density
     hb = p.crown_base_ratio * p.height_m
     z_lo = max(STUB_Z_MIN, p.root_flare_height * p.height_m)
-    if dens <= 0.0 or hb <= z_lo + 1.0:
+    if not p.trunk_stubs or dens <= 0.0 or hb <= z_lo + 1.0:
         return
     for trunk in [a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed and a.radius is not None]:
         z_hi = min(hb * 0.97, float(trunk.pos[-1, 2]))

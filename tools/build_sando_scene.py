@@ -666,7 +666,7 @@ def in_sight_line(x, y, crown_w):
 
 def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0, hero_moss=True, hero_stubs=True):
     bark = sugi_bark()
-    hero_ov = {} if hero_stubs else {"trunk_stub_density": 0.0}
+    hero_ov = {} if hero_stubs else {"trunk_stubs": False}
     hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0,
                      sugi_bark(hero=True, moss_on=hero_moss), quality=hero_quality, seed=hero_seed, **hero_ov)
     rng = np.random.default_rng(11)

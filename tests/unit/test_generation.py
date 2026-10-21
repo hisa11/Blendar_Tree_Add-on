@@ -531,8 +531,8 @@ def test_foliage_controls_do_not_change_branches():
 
 def test_trunk_stubs_below_crown_base():
     kw = dict(quality="MEDIUM", height_m=30.0, crown_base_ratio=0.5, dead_branch_ratio=0.0)
-    off = gen("sugi", trunk_stub_density=0.0, **kw)
-    on = gen("sugi", trunk_stub_density=1.0, **kw)
+    off = gen("sugi", trunk_stubs=False, trunk_stub_density=1.0, **kw)          # オフなら密度があっても付かない
+    on = gen("sugi", trunk_stubs=True, trunk_stub_density=1.0, **kw)
     hb = 0.5 * 30.0
     low_off = [a for a in off.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
     low_on = [a for a in on.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
@@ -545,7 +545,7 @@ def test_trunk_stubs_below_crown_base():
         assert reach >= r_t + 0.25, (reach, r_t)                    # 幹の表面から確かに突き出す
         assert a.radius[0] > a.radius[-1] > 0.5 * a.radius[0]      # 折れ口は先細りしすぎない
     # 根張りの高さより上にだけ付く（根張りで幹の実半径が大きく、スタブが埋まるため）
-    flared = gen("sugi", trunk_stub_density=2.0, root_flare_height=0.15, root_flare_scale=2.2, **kw)
+    flared = gen("sugi", trunk_stubs=True, trunk_stub_density=2.0, root_flare_height=0.15, root_flare_scale=2.2, **kw)
     stubs = [a for a in flared.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
     assert stubs and min(a.pos[0][2] for a in stubs) >= 0.15 * 30.0 - 1e-6
     # 他の枝（骨格・半径・折れ）には触れない: スタブは最後に足されるだけ
@@ -556,8 +556,10 @@ def test_trunk_stubs_below_crown_base():
         assert (a.dead, a.broken, a.neck) == (b.dead, b.broken, b.neck)
 
 
-def test_trunk_stub_density_default_off():
-    assert schema.BY_NAME["trunk_stub_density"].default == 0.0
+def test_trunk_stubs_default_off_and_giant_cedar_on():
+    assert schema.BY_NAME["trunk_stubs"].default is False
+    assert species_params("keyaki").trunk_stubs is False and species_params("sugi_giant").trunk_stubs is True
+    assert not [a for a in gen("sugi", quality="MEDIUM", crown_base_ratio=0.5).skeleton.axes if a.level == 1 and a.dead and a.broken and a.pos[0][2] < 15.0]
 
 
 def test_lower_crown_branches_die_more_often():
