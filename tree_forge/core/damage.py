@@ -12,6 +12,7 @@ from .util import Z, normalize, perp_basis, rotation_between
 
 LEVEL_WEIGHT = {1: 1.0, 2: 0.35, 3: 0.1}      # 太い枝ほど折れ口が目立つ（細い枝は「折れ」より「枯れ」）
 SAG_PER_NODE = 0.12      # 垂れ下がり部で、節ごとに下向きへ寄せる量
+GROUND_Z = 0.03          # 垂れ下がった枝は地面（z=0）に当たったら止まる。これより下へは行かない
 
 
 def _apply_rigid(sk: Skeleton, cm: dict, root: Axis, R: np.ndarray, old_o: np.ndarray, new_o: np.ndarray) -> None:
@@ -20,6 +21,7 @@ def _apply_rigid(sk: Skeleton, cm: dict, root: Axis, R: np.ndarray, old_o: np.nd
     while stack:
         a = stack.pop()
         a.pos = (a.pos - old_o) @ R.T + new_o
+        a.pos[:, 2] = np.maximum(a.pos[:, 2], GROUND_Z)
         stack.extend(c for c in cm.get(a.id, []) if not c.removed)
 
 
@@ -62,6 +64,7 @@ def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator) -
         R = rotation_between(old_t[i], new_t[i])
         _apply_rigid(sk, cm, c, R, P[c.parent_node], new_P[c.parent_node - kb])
         _mark_dead(cm, c)
+    new_P[:, 2] = np.maximum(new_P[:, 2], GROUND_Z)
     ax.pos[kb:] = new_P
     ax.neck = kb
 

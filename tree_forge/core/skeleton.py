@@ -382,7 +382,7 @@ def enforce_budget(p, sk: Skeleton, rng) -> None:
     def cost(a: Axis) -> int:
         return ((a.n - 1) * 2 + 1) * ring[min(a.level, 3)]
 
-    for level in (3, 2):
+    for level in (3, 2, 1):                       # 細い枝から。L1 は、L2・L3 を全部消してもまだ予算を超えるとき（プレビューの大木）の最後の手段
         for _ in range(4):
             axes = [a for a in sk.axes if not a.removed]
             total = sum(cost(a) for a in axes)
@@ -391,8 +391,11 @@ def enforce_budget(p, sk: Skeleton, rng) -> None:
             lv = [a for a in axes if a.level == level]
             if not lv:
                 break
-            drop = min(1.0, (total - target) / max(sum(cost(a) for a in lv), 1) * 1.05)
             cm = sk.children_map()
+
+            def subtree_cost(a):
+                return cost(a) + sum(subtree_cost(c) for c in cm.get(a.id, []))
+            drop = min(1.0, (total - target) / max(sum(subtree_cost(a) for a in lv), 1) * 1.05)
             for a in lv:
                 if rng.random() < drop:
                     sk.remove_subtree(a.id, cm)

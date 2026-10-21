@@ -189,7 +189,7 @@ def _build() -> list[Param]:
         P("flower_density", "float", 0.0, 0.0, 1.0, "", "花の密度", "花の量。0 で花なし。開花期（季節 0.06〜0.28 付近）にだけ付く", "leaf"),
         P("evergreen", "bool", False, label="常緑", desc="季節で葉が落ちない", group="leaf"),
         P("leaf_color", "color", (0.10, 0.28, 0.05), label="葉の色", desc="同梱の簡易マテリアルの葉の色。自分の材質を割り当てた場合は、その材質の色になる", group="leaf"),
-        P("autumn_color", "color", (0.75, 0.40, 0.05), label="紅葉の色", desc="同梱の簡易マテリアルの紅葉の色。季節 0.78〜0.92 で緑からこの色へ変わる", group="leaf"),
+        P("autumn_color", "color", (0.75, 0.40, 0.05), label="紅葉の色", desc="同梱の簡易マテリアルの紅葉の色。季節 0.62〜0.82 で緑からこの色へ変わる（0.85 で完全に紅葉）", group="leaf"),
         P("flower_color", "color", (0.96, 0.72, 0.80), label="花の色", desc="同梱の簡易マテリアルの花の色", group="leaf"),
         P("bark_type", "enum", "fissured", label="樹皮タイプ（記録のみ）", group="leaf", update_regen=False,
           desc="樹皮の種類のメモ。現在は見た目に反映されない（材質は「マテリアル」パネルで選ぶ）",

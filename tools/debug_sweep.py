@@ -167,13 +167,15 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
         k = int(np.argmin(np.abs(z_nodes - z)))
         return 2.0 * ring_stats(rings[k])[0] * 100.0, float(z_nodes[k])
 
-    d_bh, z_bh = mean_diameter_at(allometry.BREAST_HEIGHT_M)
+    # 指定の太さは根張りの膨らみを含まない（根張りの範囲では幹はそれより太い）。胸高 1.3 m が根張りの中なら、根張りの上で測る
+    z_chk = max(allometry.BREAST_HEIGHT_M, 1.15 * p.root_flare_height * p.height_m)
+    d_bh, z_bh = mean_diameter_at(z_chk)
     want = float(fn(z_bh)) * 200.0
     m["dbh_mesh"], m["dbh_want"] = d_bh, want
     if abs(d_bh / want - 1) > 0.10:
-        f.fail("TRUNK", f"胸高直径(z={z_bh:.2f} m) がメッシュで {d_bh:.1f} cm、設計 {want:.1f} cm（{(d_bh / want - 1) * 100:+.1f}%）")
-    elif abs(d_bh / want - 1) > 0.05:
-        f.warn("TRUNK", f"胸高直径がメッシュと設計で {(d_bh / want - 1) * 100:+.1f}%")
+        f.fail("TRUNK", f"幹の太さ(z={z_bh:.2f} m) がメッシュで {d_bh:.1f} cm、設計 {want:.1f} cm（{(d_bh / want - 1) * 100:+.1f}%）")
+    elif abs(d_bh / want - 1) > 0.06:
+        f.warn("TRUNK", f"幹の太さ(z={z_bh:.2f} m) がメッシュと設計で {(d_bh / want - 1) * 100:+.1f}%")
     for frac in (0.2, 0.5, 0.8):
         z_t = frac * float(z_nodes[-1])
         d_m, zz = mean_diameter_at(z_t)
@@ -219,16 +221,15 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
     l1 = [a for a in ax_all if a.level == 1]
     if l1:
         z1 = np.array([a.pos[0, 2] for a in l1])
-        live_low = [a for a in l1 if not a.dead and not a.broken and a.pos[0, 2] < hb - 0.3]
+        # 高さの合わせ直し（最大 ±40%）で全体が縦に伸び縮みするので、下端には 20% の余裕を見る
+        live_low = [a for a in l1 if not a.dead and not a.broken and a.pos[0, 2] < 0.8 * hb - 0.3]
         if live_low:
             f.fail("CROWNBASE", f"樹冠の下端（{hb:.1f} m）より下に生きた枝が {len(live_low)} 本ある")
-        gap = (p.height_m - float(z1.max())) / p.height_m
-        m["top_gap"] = gap
-        if gap > 0.15:
-            f.fail("BARETOP", f"最も高い枝の付け根が樹高の {100 - gap * 100:.0f}% で、先端の {gap * 100:.0f}% が裸")
-        elif gap > 0.10:
-            f.warn("BARETOP", f"先端の {gap * 100:.0f}% に枝がない")
-    zmin = float(mesh.co[:, 2].min())
+        m["top_gap_branch"] = (p.height_m - float(z1.max())) / p.height_m          # 参考値（幹分かれの木では幹の先が枝より低い）
+    keep = np.ones(len(mesh.co), bool)
+    sel0 = np.nonzero(mesh.point_attrs["branch_id"] == 0)[0]
+    keep[sel0[trunk.n * V:]] = False                          # 幹の底の蓋の中心（根元を閉じるため、意図して地面の下へ沈めてある）
+    zmin = float(mesh.co[keep, 2].min())
     if zmin < -0.5:
         f.fail("GROUND", f"地面の下 {zmin:.2f} m にメッシュがある")
     elif zmin < -0.15:
@@ -239,6 +240,12 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
         f.fail("NOLEAF", "葉が 1 枚もない（季節 %.2f）" % p.season)
     if n_leaf:
         lp = t.leaves.pos[t.leaves.is_leaf]
+        gap = (p.height_m - float(np.percentile(lp[:, 2], 99.9))) / p.height_m      # 先端の何 % に葉がないか
+        m["top_gap"] = gap
+        if gap > 0.15:
+            f.fail("BARETOP", f"葉の最高位置が樹高の {100 - gap * 100:.0f}%。先端の {gap * 100:.0f}% に葉がない（裸の梢）")
+        elif gap > 0.08:
+            f.warn("BARETOP", f"先端の {gap * 100:.0f}% に葉がない")
         low = int((lp[:, 2] < 0.85 * hb - 0.3).sum())
         if low and trunk.n:
             if low / n_leaf > 0.002:

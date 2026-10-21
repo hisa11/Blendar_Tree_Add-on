@@ -42,7 +42,7 @@ def season_state(season: float, evergreen: bool, flowering: bool) -> tuple[float
     start = 0.25 if flowering else 0.12
     grow = float(smoothstep((s - start) / 0.18))
     fall = 1.0 - float(smoothstep((s - 0.90) / 0.10))
-    color = float(smoothstep((s - 0.78) / 0.14))
+    color = float(smoothstep((s - 0.62) / 0.20))
     return grow * fall, flower, color
 
 

@@ -623,3 +623,28 @@ def test_giant_cedar_branch_and_leaf_balance():
     assert n2 >= 2500 and n3 >= 3500, (n2, n3)
     assert t.leaves.is_leaf.sum() / (n2 + n3) <= 80.0
     assert t.mesh.tri_count <= 1_200_000                                 # 仕様の予算のまま
+
+
+def test_hanging_broken_branches_rest_on_the_ground():
+    """垂れ下がり折れの枝（と、そこについた枝）は地面を突き抜けない。以前は低い枝が折れて垂れると、地面の下 1.7 m まで下がった。"""
+    for seed in range(1, 7):
+        t = gen("iroha_momiji", quality="MEDIUM", height_m=8.4, crown_width_m=9.1, dbh_cm=42, seed=seed,
+                broken_branch_ratio=0.6, broken_hang_ratio=1.0)
+        hung = sum(1 for a in t.skeleton.axes if a.neck >= 0)
+        zmin = min(float(a.pos[:, 2].min()) for a in t.skeleton.axes if a.level >= 1)         # 幹の根元は z=0
+        assert hung >= 3 and zmin >= damage.GROUND_Z - 1e-9, (seed, hung, zmin)
+
+
+@pytest.mark.parametrize("sid,h", [("sugi_giant", 70.0), ("keyaki", 28.0), ("quercus_robur", 35.0)])
+def test_big_tree_in_preview_stays_within_the_triangle_budget(sid, h):
+    """プレビューの大木で、L1 だけで予算（3 万）を超えていた。予算超過のときは L1 も間引く。"""
+    t = gen(sid, quality="PREVIEW", height_m=h)
+    assert t.mesh.tri_count <= allometry.quality_table("PREVIEW")["tri_cap"], t.mesh.tri_count
+
+
+def test_autumn_colour_is_complete_at_season_085():
+    """仕様 1.6: 0 冬 → 0.15 開花 → 0.3 新緑 → 0.85 紅葉 → 1 落葉。0.85 では葉が残ったまま完全に紅葉している。"""
+    leaf, _, colour = leaf_points.season_state(0.85, False, False)
+    assert colour >= 0.95 and leaf >= 0.99
+    assert leaf_points.season_state(0.55, False, False)[2] <= 0.05                 # 夏はまだ緑
+    assert leaf_points.season_state(1.0, False, False)[0] <= 0.01                  # 落葉

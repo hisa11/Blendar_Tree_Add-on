@@ -117,7 +117,7 @@ def profile_dbh_cm(p) -> float:
 
 # (リング頂点数: 幹, L1, L2, L3) / 長さ方向の目標分割長[m] / 本数の上限
 _QUALITY = {
-    "PREVIEW": dict(max_level=2, ring=(12, 6, 4, 3), seg_len=(0.50, 0.50, 0.25, 0.12), seg_max=(60, 24, 10, 5),
+    "PREVIEW": dict(max_level=2, ring=(12, 6, 4, 3), seg_len=(0.50, 0.50, 0.25, 0.12), seg_max=(60, 12, 10, 5),
                     l3_cap=0, leaf_cap=20_000, tri_cap=30_000),
     "MEDIUM": dict(max_level=3, ring=(24, 10, 6, 4), seg_len=(0.25, 0.25, 0.12, 0.06), seg_max=(120, 48, 24, 8),
                    l3_cap=2200, leaf_cap=150_000, tri_cap=200_000),

@@ -96,7 +96,7 @@ PRESETS = [
        trunk={"trunk_wobble": 0.35, "trunk_lean_deg": 6.0}),
     sp("keyaki", "ケヤキ", "Zelkova serrata", 20, 80, 18, "vase", 0.28, 0.35, 0.25,
        [lv(38, 0.05, 2.2, 1.0, wobble=0.3), lv(45, 0.10, 2.5, 0.50), lv(50, 0.15, 4.0, 0.40)],
-       {"type": "BROAD", "length_cm": 7, "width_ratio": 0.45, "per_m": 90, "cluster": 5, "geom": "CUTOUT_MESH",
+       {"type": "BROAD", "length_cm": 6, "width_ratio": 0.45, "per_m": 90, "cluster": 5, "geom": "CUTOUT_MESH",
         "color": GREEN, "autumn_color": [0.70, 0.38, 0.06]},
        {"type": "flaking", "displace_mm": 8},
        {"height_m": "M:MBG 15-24m", "dbh_cm": "E", "crown_width_m": "M:MBG 15-24m", "growth": "E", "levels": "E",
