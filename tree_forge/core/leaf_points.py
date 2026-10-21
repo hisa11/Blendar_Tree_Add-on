@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from . import allometry
+from . import allometry, leaf_shapes
 from .skeleton import Skeleton
 from .util import frame_matrices, mat_to_quat, normalize, perp_basis, smoothstep
 
@@ -96,7 +96,7 @@ def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: fl
     return np.concatenate(P), np.concatenate(Tn)
 
 
-def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: float):
+def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: float, roll_sd: float = 0.3):
     n = len(T)
     e1, e2 = perp_basis(T)
     phi = (np.arange(n) * allometry.golden_angle()) + rng.uniform(-0.5, 0.5, n)
@@ -104,7 +104,7 @@ def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: flo
     th = np.clip(rng.normal(theta_mean, theta_sd, n), 0.1, 1.5)
     fwd = normalize(T * np.cos(th)[:, None] + radial * np.sin(th)[:, None])
     hint = np.array([0.0, 0.0, 1.0]) * hint_up + 0.3 * radial
-    roll = rng.normal(0.0, 0.3, n)
+    roll = rng.normal(0.0, roll_sd, n)
     # 前方軸まわりに法線ヒントを回す
     c, s = np.cos(roll)[:, None], np.sin(roll)[:, None]
     side = np.cross(fwd, hint)
@@ -114,6 +114,11 @@ def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: flo
 
 MAX_BOOST = 2.5          # 上限に達したとき、1枚あたりを大きくする倍率の上限
 _AUTO_START = {"NEEDLE_SPIRAL": 0.1, "SCALE_TWIG": 0.1, "NEEDLE_FASCICLE": 0.5}     # それ以外は 0.2
+_AUTO_SCATTER = {"NEEDLE_SPIRAL": 0.7}                                              # それ以外は 0（従来どおり枝に沿う）
+SCATTER_POS = 0.35       # 位置の散らばり: 房の大きさに対する、枝からの最大のずれの割合（scatter 1 のとき）
+SCATTER_THETA = 0.55     # 向きの散らばり: 枝の接線からの角度の平均に足す量 [rad]（scatter 1 のとき）
+SCATTER_THETA_SD = 0.25  # 同・ばらつきに足す量 [rad]
+SCATTER_ROLL_SD = 1.0    # 同・房の面の向きのばらつき [rad]
 
 
 def _sub_levels(sk: Skeleton, depth: int, exclude: set):
@@ -166,7 +171,22 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             boost = min(MAX_BOOST, math.sqrt(n / cap))
             n = len(pts)
         if n:
-            fwd, hint, _ = _orient(tg, rng, theta, 0.25, 1.0)
+            scatter = p.leaf_scatter if p.leaf_scatter >= 0.0 else _AUTO_SCATTER.get(p.leaf_type, 0.0)
+            theta_sd = 0.25
+            roll_sd = 0.3
+            if scatter > 0.0:
+                # 枝に沿って並べるだけだと、房が枝の向きにそろって枝先ごとの固まり（芋虫状）になる。
+                # 房を枝のまわりの円盤状に散らし、向きも枝からばらけさせて、葉が全体に均一に広がるようにする
+                src = leaf_shapes.leaf_source(p)[0]
+                size = float(np.ptp(src, axis=0).max()) * p.leaf_scale * boost
+                e1, e2 = perp_basis(tg)
+                phi = rng.uniform(0.0, 2.0 * math.pi, n)
+                rad = scatter * SCATTER_POS * size * np.sqrt(rng.random(n))
+                pts = pts + (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2) * rad[:, None]
+                theta = theta + scatter * SCATTER_THETA
+                theta_sd += scatter * SCATTER_THETA_SD
+                roll_sd += scatter * SCATTER_ROLL_SD
+            fwd, hint, _ = _orient(tg, rng, theta, theta_sd, 1.0, roll_sd)
             R = frame_matrices(fwd, hint)
             sc = (1.0 + rng.uniform(-p.leaf_scale_var, p.leaf_scale_var, n)) * boost * p.leaf_scale * (0.6 + 0.4 * np.sqrt(leaf_frac))
             parts_pos.append(pts)

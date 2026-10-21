@@ -173,7 +173,7 @@ class TREEFORGE_PT_leaf(_Panel):
         hidden = ("foliage_amount",)                       # 主パネルにある
         if not pg.advanced:
             hidden += ("fascicle_count", "leaf_scale_var", "leaf_width_ratio", "bark_type", "leaf_reach",
-                       "leaf_start", "leaf_max_instances")
+                       "leaf_start", "leaf_max_instances", "leaf_scatter")
         _draw_params(self.layout, pg, "leaf", skip=hidden)
         if pg.leaf_geom == "CUSTOM_OBJECT":
             self.layout.prop(pg, "leaf_object")
