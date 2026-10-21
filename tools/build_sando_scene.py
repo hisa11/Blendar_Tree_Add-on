@@ -856,17 +856,18 @@ def addon_enable():
     addon_utils.enable("cycles", default_set=False)
 
 
-def main(argv):
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="sando.png")
-    ap.add_argument("--view", choices=("wide", "low", "crown"), default="wide")
-    ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--samples", type=int, default=96)
-    ap.add_argument("--scale", type=float, default=1.0)
-    ap.add_argument("--fog", type=float, default=0.0007)
+def build_parser():
+    ap = argparse.ArgumentParser(description="参道の巨大スギのシーンを作って描画する")
+    ap.add_argument("--out", default="sando.png", help="出力する画像のパス（PNG）")
+    ap.add_argument("--view", choices=("wide", "low", "crown"), default="wide",
+                    help="構図。wide: 参道の入口から見上げる全景（縦長） / low: 幹の根元近くから見上げる / crown: 樹冠の拡大")
+    ap.add_argument("--seed", type=int, default=7, help="巨大スギの乱数シード")
+    ap.add_argument("--samples", type=int, default=96, help="Cycles のサンプル数")
+    ap.add_argument("--scale", type=float, default=1.0, help="解像度の倍率（0.5 で縦横半分）")
+    ap.add_argument("--fog", type=float, default=0.0007, help="霧の濃さ（0 で霧なし）。濃くすると空が暗くなる")
     ap.add_argument("--bg-trees", type=int, default=30, help="参道沿いの杉並木の本数（目安）")
     ap.add_argument("--forest", type=int, default=140, help="遠景の森の本数")
-    ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"))
+    ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"), help="巨大スギの品質")
     ap.add_argument("--no-shimenawa", action="store_true", help="御神木の注連縄を付けない")
     ap.add_argument("--no-shide", action="store_true", help="紙垂を付けない")
     ap.add_argument("--no-mound", action="store_true", help="根元の土盛りを付けない")
@@ -874,9 +875,14 @@ def main(argv):
     ap.add_argument("--no-bark-moss", action="store_true", help="御神木の幹の根元に苔を付けない")
     ap.add_argument("--no-stubs", action="store_true", help="御神木の枝下の枝痕（スタブ）を付けない")
     ap.add_argument("--no-extras", action="store_true", help="御神木に足したもの（上の全部）を付けない")
-    ap.add_argument("--save-blend", default="")
-    ap.add_argument("--no-render", action="store_true")
-    ap.add_argument("--no-denoise", action="store_true")
+    ap.add_argument("--save-blend", default="", help=".blend も保存するパス")
+    ap.add_argument("--no-render", action="store_true", help="シーンだけ作って描画しない")
+    ap.add_argument("--no-denoise", action="store_true", help="デノイズを使わない")
+    return ap
+
+
+def main(argv):
+    ap = build_parser()
     args = ap.parse_args(argv)
 
     for o in list(bpy.data.objects):

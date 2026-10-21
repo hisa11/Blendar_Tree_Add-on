@@ -104,7 +104,10 @@ blender --command extension build --source-dir tree_forge --output-dir dist
 | 葉の付き始め `leaf_start` | 末端の枝の付け根からどこから付けるか（-1 は自動: 針葉・鱗片葉 0.1、針葉束 0.5、他 0.2） | 詳細モード |
 | 葉の最大数 `leaf_max_instances` | インスタンス数の上限（葉のまとまり 1 つを 1 と数える。花は上限の半分まで。0 は品質の上限）。多いほどメモリと描画時間が増える | 詳細モード |
 
-全設定項目の一覧（内部名・単位・範囲・既定値・説明）は [docs/PARAMETERS.md](docs/PARAMETERS.md) にあります（`python tools/dump_params.py` で生成）。
+全設定項目の一覧は次の 2 つにまとめています。どちらもコードとプリセットから自動生成します（`python tools/dump_params.py`。bpy が必要）。
+
+- [docs/PARAMETERS.md](docs/PARAMETERS.md): 画面のどのパネルに何が出るか（条件つき）、パラメータ全 95 項目（内部名・単位・範囲・既定値・説明）、UI 専用の設定、ボタン、品質レベル、プリセットの書式、参道シーンのオプション。
+- [docs/PRESET_VALUES.md](docs/PRESET_VALUES.md): 13 樹種の全項目の値（既定と違う値は太字）。
 
 ### 品質
 

@@ -60,15 +60,24 @@ class TF_ProfilePoint(PropertyGroup):
 
 
 class TF_PartMaterials(PropertyGroup):
-    trunk: PointerProperty(type=bpy.types.Material, name="幹")
-    branch: PointerProperty(type=bpy.types.Material, name="枝")
-    twig: PointerProperty(type=bpy.types.Material, name="小枝")
-    leaf: PointerProperty(type=bpy.types.Material, name="葉")
-    flower: PointerProperty(type=bpy.types.Material, name="花")
-    fruit: PointerProperty(type=bpy.types.Material, name="果実")
-    root_flare: PointerProperty(type=bpy.types.Material, name="根張り")
-    broken: PointerProperty(type=bpy.types.Material, name="折れ口")
-    auto_assign: BoolProperty(name="再生成時に自動割り当て", default=False)
+    trunk: PointerProperty(type=bpy.types.Material, name="幹",
+          description="幹の材質（スロット 0）")
+    branch: PointerProperty(type=bpy.types.Material, name="枝",
+           description="枝の材質（スロット 1）")
+    twig: PointerProperty(type=bpy.types.Material, name="小枝",
+         description="小枝の材質（スロット 2）。未指定なら枝の材質を使う")
+    leaf: PointerProperty(type=bpy.types.Material, name="葉",
+         description="葉の材質（スロット 3。葉は Geometry Nodes のインスタンスに付く）")
+    flower: PointerProperty(type=bpy.types.Material, name="花",
+           description="花の材質（スロット 4。Geometry Nodes のインスタンスに付く）")
+    fruit: PointerProperty(type=bpy.types.Material, name="果実",
+          description="果実の材質（スロット 5）")
+    root_flare: PointerProperty(type=bpy.types.Material, name="根張り",
+               description="根張りの材質（スロット 6）。未指定なら幹の材質を使う")
+    broken: PointerProperty(type=bpy.types.Material, name="折れ口",
+           description="枝の折れ口の材質（スロット 7）。淡い木質色にすると折れ口が白っぽく見える")
+    auto_assign: BoolProperty(name="再生成時に自動割り当て", default=False,
+                              description="再生成のたびに、材質名のキーワード（bark, leaf, 枝 など）で各部位へ自動で割り当てる")
     flip_normal_green: BoolProperty(name="法線Gを反転(DirectX)", default=False,
                                     description="フォルダから構築するとき、規約が不明な法線マップを DirectX として扱う")
 
@@ -109,7 +118,8 @@ def _build_group_class():
         is_tree=BoolProperty(default=False),
         live_update=BoolProperty(name="自動再生成", default=False,
                                  description="値を変えるたびに再生成（高品質では無効）"),
-        advanced=BoolProperty(name="詳細モード", default=False),
+        advanced=BoolProperty(name="詳細モード", default=False,
+                              description="全パラメータのパネル（枝 L1〜L3 の細目、葉の細目、折れ位置など）を表示する"),
         initialized=BoolProperty(default=False, description="樹種プリセットを一度適用したか"),
         leaves_object=PointerProperty(type=bpy.types.Object),
         leaf_src=PointerProperty(type=bpy.types.Object),

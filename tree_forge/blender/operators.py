@@ -59,6 +59,7 @@ class TREEFORGE_OT_regenerate(_TreeOperator):
 class TREEFORGE_OT_randomize_seed(Operator):
     bl_idname = "treeforge.randomize_seed"
     bl_label = "シードを変える"
+    bl_description = "シードを 0〜99999 の乱数に変える。再生成すると別の形の木になる"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -94,6 +95,7 @@ class TREEFORGE_OT_profile_add(Operator):
 class TREEFORGE_OT_profile_remove(Operator):
     bl_idname = "treeforge.profile_remove"
     bl_label = "点を削除"
+    bl_description = "選択中の太さプロファイルの点を削除する"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -125,6 +127,7 @@ class TREEFORGE_OT_profile_reset(Operator):
 class TREEFORGE_OT_profile_sort(Operator):
     bl_idname = "treeforge.profile_sort"
     bl_label = "高さ順に並べる"
+    bl_description = "太さプロファイルの点を、高さ比の小さい順に並べ直す"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -194,6 +197,7 @@ class TREEFORGE_OT_build_from_folder(Operator):
 class TREEFORGE_OT_import_blend_materials(Operator):
     bl_idname = "treeforge.import_blend_materials"
     bl_label = ".blend からマテリアルを取り込む"
+    bl_description = "別の .blend のマテリアルを取り込み、名前のキーワードで各部位へ割り当てて木に反映する"
     bl_options = {"REGISTER", "UNDO"}
 
     filepath: StringProperty(subtype="FILE_PATH")
@@ -247,6 +251,7 @@ class TREEFORGE_OT_preset_save(Operator):
 class TREEFORGE_OT_preset_load(Operator):
     bl_idname = "treeforge.preset_load"
     bl_label = "プリセットを読み込む"
+    bl_description = "保存したプリセット（JSON）を読み込み、今の設定を置き換える。木を選択中なら再生成する"
     bl_options = {"REGISTER", "UNDO"}
 
     filepath: StringProperty(subtype="FILE_PATH")
