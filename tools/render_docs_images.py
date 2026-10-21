@@ -2,10 +2,11 @@
 
     python tools/render_docs_images.py                 # 全部
     python tools/render_docs_images.py --only species,lineup
-    項目: species / lineup / trunk / sections / broken / foliage
+    項目: species / lineup / near / trunk / sections / broken / foliage
 
   species : 13 樹種の全体像（標準品質・既定サイズ）を並べた表   → species.jpg
   lineup  : 13 樹種を 1 つの景色に並べた引きの絵（大きさの比較） → species_far.jpg
+  near    : 13 樹種の寄り（樹冠の枝と葉の付き方、高品質）         → species_near.jpg
   trunk   : 幹の太さプロファイル 3 通り                        → trunk_profiles.jpg
   sections: 幹の断面を高さ別に重ねた図（いびつさ 0 / 0.35 / 0.7）→ sections.png
   broken  : 折れた枝（冬のケヤキ）                              → broken_branches.jpg
@@ -156,6 +157,41 @@ def make_lineup(tmp: Path):
     img.save(OUT / "species_far.jpg", quality=88)
 
 
+def make_near(tmp: Path):
+    """13 樹種の寄り（高品質）。樹冠の中ほどの外側へ 2.5〜7 m まで近づいて、枝の分かれ方と葉の付き方を見る。"""
+    from tree_forge.core import envelope
+    import numpy as np
+    from mathutils import Vector
+    w, h = 480, 360
+    tiles = []
+    for i, sid in enumerate(schema.SPECIES_IDS):
+        rv.clear_scene()
+        obj = rv.make_tree(tree_overrides(sid, quality="HERO", seed=1 + i))
+        p = props.read(obj.tree_forge)
+        H = p.height_m
+        rv.build_environment(H, max(H, p.crown_width_m) * 60)
+        sc = setup_render(w, h, 40)
+        co = new_camera(sc)
+        zt = (p.crown_base_ratio + 0.55 * (1.0 - p.crown_base_ratio)) * H
+        reach = float(envelope.reach(p, np.array([zt]))[0])
+        d = min(7.0, max(2.5, 0.12 * H))
+        tgt = Vector((0.0, -0.7 * reach, zt))
+        rv.aim(co, tgt + Vector((0.3, -1.0, 0.12)).normalized() * d, tgt)
+        f = tmp / f"near_{sid}.png"
+        render_to(f)
+        tiles.append((sid, f))
+    cols, rows = 5, 3
+    img = Image.new("RGB", (w * cols, h * rows), (235, 240, 248))
+    d = ImageDraw.Draw(img)
+    for i, (sid, f) in enumerate(tiles):
+        x, y = (i % cols) * w, (i // cols) * h
+        img.paste(Image.open(f).convert("RGB"), (x, y))
+        d.rectangle([x, y, x + w, y + 28], fill=(0, 0, 0))
+        d.text((x + 8, y + 4), schema.SPECIES_NAMES[sid], fill=(255, 255, 255), font=font(17))
+    img = img.resize((img.width * 2 // 3, img.height * 2 // 3), Image.LANCZOS)
+    img.save(OUT / "species_near.jpg", quality=88)
+
+
 def make_trunk(tmp: Path):
     """同じ木を、幹の太さプロファイルだけ変えて 3 本並べる。"""
     rv.clear_scene()
@@ -222,7 +258,7 @@ def make_sections(tmp: Path):
     subprocess.run([sys.executable, str(ROOT / "tools" / "plot_sections.py"), str(OUT / "sections.png")], check=True)
 
 
-MAKERS = {"species": make_species, "lineup": make_lineup, "trunk": make_trunk, "sections": make_sections,
+MAKERS = {"species": make_species, "lineup": make_lineup, "near": make_near, "trunk": make_trunk, "sections": make_sections,
           "broken": make_broken, "foliage": make_foliage}
 
 
