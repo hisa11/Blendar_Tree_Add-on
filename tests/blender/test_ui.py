@@ -140,5 +140,23 @@ def _():
     assert 1.8 < n2 / n1 < 2.2, (n1, n2)
 
 
+@check("UI: 詳細モードでは、スキーマの全パラメータがどこかのパネルに出る（描き漏れが無い）")
+def _():
+    from tree_forge import schema
+    ctx = setup(True)
+    pg = ctx.active_object.tree_forge
+    pg.advanced = True
+    seen = set()
+    for mode in ("AUTO", "CUSTOM"):
+        pg.trunk_profile_mode = mode
+        for cls in ui.CLASSES:
+            if issubclass(cls, bpy.types.Panel) and (not hasattr(cls, "poll") or cls.poll(ctx)):
+                log = []
+                cls.draw(type("P", (), {"layout": FakeLayout(log)})(), ctx)
+                seen |= {a[1] for n, a, _ in log if n == "prop"}
+    missing = [p.name for p in schema.PARAMS if p.name not in seen]
+    assert not missing, f"UI に出ていない: {missing}"
+
+
 if __name__ == "__main__":
     sys.exit(1 if run_all() else 0)

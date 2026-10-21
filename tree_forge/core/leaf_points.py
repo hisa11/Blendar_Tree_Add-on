@@ -107,13 +107,14 @@ def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: flo
 
 
 MAX_BOOST = 2.5          # 上限に達したとき、1枚あたりを大きくする倍率の上限
+_AUTO_START = {"NEEDLE_SPIRAL": 0.1, "SCALE_TWIG": 0.1, "NEEDLE_FASCICLE": 0.5}     # それ以外は 0.2
 
 
-def _sub_levels(sk: Skeleton, depth: int):
-    """末端レベルから depth 段手前（>=1）の、枯れていない軸。"""
+def _sub_levels(sk: Skeleton, depth: int, exclude: set):
+    """末端レベルから depth 段手前（>=1）の、枯れていない軸。exclude（すでに葉を付けた軸）は除く。"""
     live = [a for a in sk.axes if not a.removed]
     lv = max(a.level for a in live) - depth
-    return [a for a in live if not a.dead and a.level == lv and a.level >= 1]
+    return [a for a in live if not a.dead and a.level == lv and a.level >= 1 and a.id not in exclude]
 
 
 def generate(p, sk: Skeleton, st) -> LeafData:
@@ -129,15 +130,19 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     if leaf_frac > 0.01 and p.foliage_amount > 0.0:
         theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
         per_m = p.leaves_per_m * p.foliage_amount
-        pts, tg = _place(axes, per_m, p.leaf_start, rng, leaf_frac, theta, 0.25)
+        start = p.leaf_start if p.leaf_start >= 0.0 else _AUTO_START.get(p.leaf_type, 0.2)
+        done = {a.id for a in axes}
+        pts, tg = _place(axes, per_m, start, rng, leaf_frac, theta, 0.25)
         reach = p.leaf_reach
         if reach == "AUTO":
             reach = "OUTER" if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE") else "TERMINAL"
         extra = []
         if reach in ("OUTER", "ALL"):                      # 末端の一段手前の枝の外側半分（量感）
-            extra.append(_place(_sub_levels(sk, 1), per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
+            sub1 = _sub_levels(sk, 1, done)
+            done |= {a.id for a in sub1}
+            extra.append(_place(sub1, per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
         if reach == "ALL":                                  # さらに手前の枝の外側 40%
-            extra.append(_place(_sub_levels(sk, 2), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
+            extra.append(_place(_sub_levels(sk, 2, done), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)

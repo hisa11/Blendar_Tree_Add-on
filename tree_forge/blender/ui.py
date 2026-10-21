@@ -196,6 +196,7 @@ class TREEFORGE_PT_materials(_Panel):
         col.prop(pg, "bark_tile_w_m")
         col.prop(pg, "bark_tile_h_m")
         lay.prop(pg, "uv_integer_wrap")
+        lay.prop(pg, "junction_blend_len")
 
 
 class TREEFORGE_PT_presets(_Panel):

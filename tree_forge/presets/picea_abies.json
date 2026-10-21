@@ -49,7 +49,6 @@
     "length_cm": 1.8,
     "per_m": 120,
     "scale": 4.0,
-    "start": 0.1,
     "geom": "CUTOUT_MESH",
     "evergreen": true,
     "color": [

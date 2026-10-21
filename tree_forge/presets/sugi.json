@@ -49,7 +49,6 @@
     "per_m": 60,
     "cluster": 5,
     "scale": 4.5,
-    "start": 0.1,
     "amount": 2.0,
     "geom": "CUTOUT_MESH",
     "evergreen": true,

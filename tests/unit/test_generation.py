@@ -443,9 +443,19 @@ def test_leaf_reach_extends_to_inner_branches():
     for sid in ("keyaki", "sugi_giant"):
         t, o, a = (_leaf_n(sid, leaf_reach=r) for r in ("TERMINAL", "OUTER", "ALL"))
         assert t < o <= a, (sid, t, o, a)
+    # 枝が3段ある針葉樹（標準）では ALL は OUTER より確実に多い。二重に配置された軸は無い
+    o, a = (_leaf_n("sugi", leaf_reach=r) for r in ("OUTER", "ALL"))
+    assert a > o, (o, a)
     # AUTO: 針葉は OUTER、広葉は TERMINAL（従来の挙動）
     assert _leaf_n("sugi_giant", leaf_reach="AUTO") == _leaf_n("sugi_giant", leaf_reach="OUTER")
     assert _leaf_n("keyaki", leaf_reach="AUTO") == _leaf_n("keyaki", leaf_reach="TERMINAL")
+
+
+def test_leaf_start_auto_matches_the_old_per_type_values():
+    """leaf_start=-1（自動）は、旧版の葉の種類ごとの付き始め（針葉 0.1 / 針葉束 0.5 / その他 0.2）と同じ。"""
+    for sid, expect in (("sugi", 0.1), ("hinoki", 0.1), ("kuromatsu", 0.5), ("keyaki", 0.2), ("ichou", 0.2)):
+        assert _leaf_n(sid, leaf_start=-1.0) == _leaf_n(sid, leaf_start=expect), sid
+    assert schema.BY_NAME["leaf_start"].default == -1.0
 
 
 def test_leaf_start_moves_leaves_toward_tips():
