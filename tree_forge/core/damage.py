@@ -10,7 +10,7 @@ import numpy as np
 from .skeleton import Axis, Skeleton
 from .util import Z, normalize, perp_basis, rotation_between
 
-LEVEL_WEIGHT = {1: 1.0, 2: 0.7, 3: 0.3}
+LEVEL_WEIGHT = {1: 1.0, 2: 0.35, 3: 0.1}      # 太い枝ほど折れ口が目立つ（細い枝は「折れ」より「枯れ」）
 SAG_PER_NODE = 0.12      # 垂れ下がり部で、節ごとに下向きへ寄せる量
 
 

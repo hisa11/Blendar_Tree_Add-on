@@ -49,7 +49,9 @@
     "type": "NEEDLE_FASCICLE",
     "length_cm": 10,
     "fascicle": 2,
-    "per_m": 22,
+    "per_m": 14,
+    "cluster": 10,
+    "scale": 1.3,
     "geom": "CUTOUT_MESH",
     "evergreen": true,
     "color": [

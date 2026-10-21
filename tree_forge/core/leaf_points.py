@@ -117,8 +117,15 @@ def generate(p, sk: Skeleton, st) -> LeafData:
 
     # --- 葉 ---
     if leaf_frac > 0.01:
-        theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.8, "NEEDLE_SPIRAL": 0.75}[p.leaf_type]
-        pts, tg = _place(axes, p.leaves_per_m, 0.2, rng, leaf_frac, theta, 0.25)
+        theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
+        u0 = 0.1 if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG") else 0.2
+        pts, tg = _place(axes, p.leaves_per_m, u0, rng, leaf_frac, theta, 0.25)
+        if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE"):
+            # 針葉樹は末端の一段手前の枝の外側半分にも付ける（量感）
+            top = max(a.level for a in sk.axes if not a.removed)
+            sub = [a for a in sk.axes if not a.removed and not a.dead and a.level == top - 1 and a.level >= 1]
+            pts2, tg2 = _place(sub, p.leaves_per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25)
+            pts, tg = np.concatenate([pts, pts2]), np.concatenate([tg, tg2])
         n = len(pts)
         boost = 1.0
         if n > cap:
@@ -129,7 +136,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         if n:
             fwd, hint, _ = _orient(tg, rng, theta, 0.25, 1.0)
             R = frame_matrices(fwd, hint)
-            sc = (1.0 + rng.uniform(-p.leaf_scale_var, p.leaf_scale_var, n)) * boost * (0.6 + 0.4 * np.sqrt(leaf_frac))
+            sc = (1.0 + rng.uniform(-p.leaf_scale_var, p.leaf_scale_var, n)) * boost * p.leaf_scale * (0.6 + 0.4 * np.sqrt(leaf_frac))
             parts_pos.append(pts)
             parts_quat.append(mat_to_quat(R))
             parts_scale.append(np.repeat(sc[:, None], 3, axis=1))
@@ -140,7 +147,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     n_leaf = sum(len(x) for x in parts_pos)
     if flower_frac > 0.01 and p.flower_density > 0.0:
         f_axes = [a for a in sk.axes if not a.removed and not a.dead and a.level >= 2]
-        pts, tg = _place(f_axes, p.leaves_per_m * 0.45 * p.flower_density, 0.15, rng, flower_frac, 0.8, 0.3)
+        pts, tg = _place(f_axes, p.leaves_per_m * 1.2 * p.flower_density, 0.15, rng, flower_frac, 0.8, 0.3)
         n = len(pts)
         if n > cap // 2:
             keep = np.sort(rng.choice(n, cap // 2, replace=False))
@@ -150,7 +157,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             fwd, hint, radial = _orient(tg, rng, 0.9, 0.3, 0.6)
             hint = normalize(radial + np.array([0.0, 0.0, 0.5]))
             R = frame_matrices(fwd, hint)
-            sc = 1.0 + rng.uniform(-0.2, 0.2, n)
+            sc = (1.0 + rng.uniform(-0.2, 0.2, n)) * p.leaf_scale
             parts_pos.append(pts)
             parts_quat.append(mat_to_quat(R))
             parts_scale.append(np.repeat(sc[:, None], 3, axis=1))

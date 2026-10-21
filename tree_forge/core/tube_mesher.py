@@ -117,9 +117,9 @@ def _group(p, axs, V, dist, dmax, rng, h_root):
         c_e = ctr[bro, ke]
         inward = rng.uniform(0.65, 1.0, (len(bro), V))
         jag = rng.random((len(bro), V)) ** 1.3
-        spike = rng.integers(0, V, len(bro))
-        jag[np.arange(len(bro)), spike] *= 2.0
-        shift = (0.12 + 1.1 * jag) * r_e[:, None]
+        for _ in range(2 if V >= 6 else 1):                       # 繊維が長く残るささくれ
+            jag[np.arange(len(bro)), rng.integers(0, V, len(bro))] *= 2.4
+        shift = (0.15 + 1.2 * jag) * r_e[:, None]
         co[bro, ke] = c_e[:, None, :] + (ring - c_e[:, None, :]) * inward[..., None] + t_e[:, None, :] * shift[..., None]
         co[bro, ke - 1] += t_e[:, None, :] * (0.18 * shift)[..., None]
 

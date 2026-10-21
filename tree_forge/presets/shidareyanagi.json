@@ -48,6 +48,7 @@
     "length_cm": 11,
     "width_ratio": 0.12,
     "per_m": 40,
+    "cluster": 6,
     "geom": "CUTOUT_MESH",
     "color": [
       0.18,

@@ -8,6 +8,7 @@ from __future__ import annotations
 import bpy
 from bpy.props import (BoolProperty, CollectionProperty, EnumProperty, FloatProperty, FloatVectorProperty,
                        IntProperty, PointerProperty, StringProperty)
+from bpy.app.handlers import persistent
 from bpy.types import PropertyGroup
 
 from . import preset_io, schema
@@ -106,6 +107,7 @@ def _build_group_class():
         live_update=BoolProperty(name="自動再生成", default=False,
                                  description="値を変えるたびに再生成（高品質では無効）"),
         advanced=BoolProperty(name="詳細モード", default=False),
+        initialized=BoolProperty(default=False, description="樹種プリセットを一度適用したか"),
         leaves_object=PointerProperty(type=bpy.types.Object),
         leaf_src=PointerProperty(type=bpy.types.Object),
         flower_src=PointerProperty(type=bpy.types.Object),
@@ -172,11 +174,32 @@ def reset_profile(pg) -> None:
     set_profile(pg, allometry.auto_profile_points(ns, 5))
 
 
+def ensure_template(scene) -> None:
+    """シーンのひな形に、選択中の樹種のプリセットを一度だけ適用する。"""
+    pg = scene.tree_forge
+    if not pg.initialized:
+        if pg.species != "custom":
+            write(pg, preset_io.builtin_overrides(pg.species))
+        pg.initialized = True
+
+
+def _init_templates():
+    for sc in bpy.data.scenes:
+        ensure_template(sc)
+    return None
+
+
+@persistent
+def _on_load_post(_):
+    bpy.app.timers.register(_init_templates, first_interval=0.1)
+
+
 def copy_group(src, dst) -> None:
     ov = {p.name: (tuple(getattr(src, p.name)) if p.kind == "color" else getattr(src, p.name))
           for p in schema.PARAMS}
     ov["profile"] = [(pt.height_ratio, pt.diameter_cm) for pt in src.profile]
     write(dst, ov, reset=False)
+    dst.initialized = True
 
 
 def active_group(context):
@@ -195,9 +218,13 @@ def register() -> None:
         bpy.utils.register_class(c)
     bpy.types.Object.tree_forge = PointerProperty(type=TF_TreeParams)
     bpy.types.Scene.tree_forge = PointerProperty(type=TF_TreeParams)
+    bpy.app.handlers.load_post.append(_on_load_post)
+    bpy.app.timers.register(_init_templates, first_interval=0.1)
 
 
 def unregister() -> None:
+    if _on_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_on_load_post)
     del bpy.types.Scene.tree_forge
     del bpy.types.Object.tree_forge
     for c in reversed(CLASSES):

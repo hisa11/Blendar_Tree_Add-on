@@ -47,6 +47,7 @@
     "type": "FAN",
     "length_cm": 3.5,
     "per_m": 50,
+    "cluster": 4,
     "geom": "CUTOUT_MESH",
     "color": [
       0.14,

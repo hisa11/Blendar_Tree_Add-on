@@ -92,6 +92,26 @@ def needle_fascicle(length: float, count: int):
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
+def fascicle_tuft(length: float, count: int, n: int):
+    """クロマツの枝先の房: n 組の針束が先端方向の円錐状に広がる。"""
+    verts, uv, tris = [], [], []
+    golden = math.radians(137.5)
+    w = max(length * 0.025, 0.0008)
+    for i in range(n):
+        phi = i * golden
+        polar = math.radians(15.0 + 55.0 * math.sqrt((i + 0.5) / n))
+        axis = normalize(np.array([math.sin(polar) * math.cos(phi), math.cos(polar), math.sin(polar) * math.sin(phi)]))
+        side0 = normalize(np.cross(axis, np.array([0.0, 0.0, 1.0])))
+        for j in range(count):
+            a = (j - (count - 1) / 2.0) * math.radians(9.0)
+            d = normalize(axis * math.cos(a) + side0 * math.sin(a))
+            b = len(verts)
+            verts += _needle(np.zeros(3), d, normalize(np.cross(d, side0)), length, w)
+            uv += [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
+            tris.append((b, b + 1, b + 2))
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
 def needle_sprig(needle_len: float, n_needles: int = 16):
     """針葉のらせん: 短い枝に針がらせん状に付く。"""
     verts, uv, tris = [], [], []
@@ -126,10 +146,52 @@ def flower(radius: float):
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
+def _merge(parts):
+    verts, tris, uv, base = [], [], [], 0
+    for v, t, u in parts:
+        verts.append(v)
+        tris.append(t + base)
+        uv.append(u)
+        base += len(v)
+    return np.vstack(verts), np.vstack(tris).astype(np.int32), np.vstack(uv)
+
+
+def _xform(v, yaw, pitch, scale, offset):
+    cz, sz, cx, sx = math.cos(yaw), math.sin(yaw), math.cos(pitch), math.sin(pitch)
+    Rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
+    Rz = np.array([[cz, -sz, 0], [sz, cz, 0], [0, 0, 1]])
+    return (v * scale) @ (Rz @ Rx).T + offset
+
+
+def cluster(single, n: int, length: float, rosette: bool = False):
+    """葉 single (verts, tris, uv) を n 枚まとめた「葉つきの小枝」。+Y 方向に伸びる。決定的（乱数は固定シード）。"""
+    rng = np.random.default_rng(7)
+    v0, t0, u0 = single
+    parts = []
+    for i in range(n):
+        if rosette:                                   # 短枝の束生（イチョウ）: 付け根から放射状
+            yaw = (i - (n - 1) / 2.0) * math.radians(150.0 / max(n - 1, 1))
+            off = np.zeros(3)
+            sc, pitch = 1.0 - 0.05 * (i % 2), math.radians(rng.uniform(0, 12))
+        else:                                         # 互生: 左右交互に開きながら先へ進む
+            side = 1.0 if i % 2 == 0 else -1.0
+            yaw = side * math.radians(rng.uniform(32, 58))
+            off = np.array([side * 0.04 * length, i * 0.36 * length, 0.0])
+            sc, pitch = max(0.55, 1.0 - 0.07 * i), math.radians(rng.uniform(-8, 14))
+        parts.append((_xform(v0, yaw, pitch, sc, off), t0, u0))
+    return _merge(parts)
+
+
 def leaf_source(p):
-    """パラメータに合う葉のジオメトリ。"""
+    """パラメータに合う葉（または葉つきの小枝）のジオメトリ。"""
     L = p.leaf_length_cm * 0.01
     t = p.leaf_type
+    n = p.leaf_cluster
+    if n > 1 and t in ("BROAD", "FAN"):
+        if t == "FAN":
+            return cluster(fan(L, p.leaf_width_ratio, n_arc=7), n, L, rosette=True)
+        single = card(L, p.leaf_width_ratio) if p.leaf_geom == "CARD" else broad(L, p.leaf_width_ratio, n_rows=5)
+        return cluster(single, n, L)
     if p.leaf_geom == "CARD" and t in ("BROAD", "FAN", "SCALE_TWIG"):
         return card(L, p.leaf_width_ratio)
     if t == "BROAD":
@@ -139,11 +201,20 @@ def leaf_source(p):
     if t == "SCALE_TWIG":
         return scale_twig(L, p.leaf_width_ratio)
     if t == "NEEDLE_FASCICLE":
-        return needle_fascicle(L, p.fascicle_count)
+        return fascicle_tuft(L, p.fascicle_count, n) if n > 1 else needle_fascicle(L, p.fascicle_count)
     if t == "NEEDLE_SPIRAL":
         return needle_sprig(L)
     raise ValueError(t)
 
 
 def flower_source(p):
-    return flower(0.015 + 0.002 * p.leaf_length_cm)
+    """花の房: 4輪が小さな球状にまとまる（遠景でも塊として見える）。"""
+    r = 0.015 + 0.002 * p.leaf_length_cm
+    base = flower(r)
+    rng = np.random.default_rng(11)
+    parts = []
+    for i in range(4):
+        th = 2 * math.pi * i / 4 + rng.uniform(-0.3, 0.3)
+        off = np.array([math.cos(th), math.sin(th), rng.uniform(-0.2, 0.5)]) * r * 1.1
+        parts.append((_xform(base[0], th, rng.uniform(-0.4, 0.4), rng.uniform(0.85, 1.1), off), base[1], base[2]))
+    return _merge(parts)
