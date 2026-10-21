@@ -23,6 +23,7 @@ import bmesh  # noqa: E402  (bpy より後に import する必要がある)
 from mathutils import Euler, Matrix, Vector
 
 ROOT = Path(__file__).resolve().parent.parent
+CAM_X, CAM_Y = -1.6, -43.0           # 全景カメラの位置（視線上の木の除外にも使う）
 if (ROOT / "tree_forge").is_dir() and str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -64,9 +65,11 @@ class Mat:
             setattr(node, k, v)
         return node
 
-    def principled(self, color=None, rough=0.8, x=500, y=0):
+    def principled(self, color=None, rough=0.8, x=500, y=0, spec=None):
         b = self.nt.nodes.new("ShaderNodeBsdfPrincipled")
         b.location = (x, y)
+        if spec is not None:
+            b.inputs["Specular IOR Level"].default_value = spec
         if color is not None:
             b.inputs["Base Color"].default_value = (*color, 1.0)
         b.inputs["Roughness"].default_value = rough
@@ -129,13 +132,25 @@ def smooth_range(m, value, lo, hi, x=None, y=0, clamp=True):
     return r.outputs["Result"]
 
 
-def sugi_bark():
-    """スギの樹皮: 縦に長い繊維状の剥離と深い縦溝、根元は苔。UV は u=周方向(1 m タイル×整数)、v=幹に沿って 1 m。"""
-    m = Mat("Sando_SugiBark")
-    uv = m.n("ShaderNodeTexCoord", y=0).outputs["UV"]
+def sugi_bark(hero=False):
+    """スギの樹皮: 縦に長い繊維状の剥離と深い縦溝、根元は苔。
+    縞は UV でなく Object 座標で作る（UV は周方向のタイル数が整数に丸められる高さで位相が跳び、幹に横一文字の継ぎ目が出るため）。
+    木ごとに縞の位相をずらす。hero=True は溝を約 2 倍粗くした御神木専用。"""
+    m = Mat("Sando_SugiBark_Hero" if hero else "Sando_SugiBark")
     obj = m.n("ShaderNodeTexCoord", y=-500).outputs["Object"]
-    fine = noise(m, 1.0, 10.0, 0.62, mapping(m, uv, (34.0, 1.6, 1.0)).outputs["Vector"], y=200)
-    coarse = noise(m, 1.0, 6.0, 0.55, mapping(m, uv, (7.0, 0.55, 1.0)).outputs["Vector"], y=-100)
+    rnd0 = m.n("ShaderNodeObjectInfo", y=-450).outputs["Random"]
+    ofs = m.n("ShaderNodeMath", operation="MULTIPLY", y=-450)
+    m.link(rnd0, ofs.inputs[0])
+    set_in(ofs, 1, 100.0)
+    ofs_v = m.n("ShaderNodeCombineXYZ", y=-450)
+    for ax in ("X", "Y", "Z"):
+        m.link(ofs.outputs["Value"], ofs_v.inputs[ax])
+    fine_map = mapping(m, obj, (30.0, 30.0, 1.6))
+    m.link(ofs_v.outputs["Vector"], fine_map.inputs["Location"])
+    coarse_map = mapping(m, obj, (3.5, 3.5, 0.3) if hero else (7.0, 7.0, 0.55))
+    m.link(ofs_v.outputs["Vector"], coarse_map.inputs["Location"])
+    fine = noise(m, 1.0, 10.0, 0.62, fine_map.outputs["Vector"], y=200)
+    coarse = noise(m, 1.0, 6.0, 0.55, coarse_map.outputs["Vector"], y=-100)
     groove = ramp(m, [(0.38, (0.0, 0, 0)), (0.62, (1.0, 1, 1))], coarse.outputs["Fac"], y=-100)
     col = ramp(m, [(0.0, (0.030, 0.014, 0.010)), (0.45, (0.17, 0.075, 0.042)), (1.0, (0.33, 0.17, 0.095))],
                fine.outputs["Fac"], y=250)
@@ -145,7 +160,7 @@ def sugi_bark():
     a_in = [s for s in cm.inputs if s.name == "A" and s.type == "RGBA"][0]
     b_in = [s for s in cm.inputs if s.name == "B" and s.type == "RGBA"][0]
     m.link(col.outputs["Color"], a_in)
-    gr = ramp(m, [(0.0, (0.35, 0.35, 0.35)), (1.0, (1.0, 1.0, 1.0))], groove.outputs["Color"], y=-250)
+    gr = ramp(m, [(0.0, (0.22, 0.22, 0.22)), (1.0, (1.0, 1.0, 1.0))], groove.outputs["Color"], y=-250)
     m.link(gr.outputs["Color"], b_in)
     m.link([s for s in cm.outputs if s.type == "RGBA"][0], bark.inputs["Base Color"])
     # 凹凸: 溝 + 繊維
@@ -153,8 +168,8 @@ def sugi_bark():
     m.link(groove.outputs["Color"], hmix.inputs[0])
     m.link(fine.outputs["Fac"], hmix.inputs[1])
     bump = m.n("ShaderNodeBump", y=-300)
-    set_in(bump, "Strength", 1.4)
-    set_in(bump, "Distance", 0.06)
+    set_in(bump, "Strength", 2.0)
+    set_in(bump, "Distance", 0.10)
     m.link(hmix.outputs["Value"], bump.inputs["Height"])
     m.link(bump.outputs["Normal"], bark.inputs["Normal"])
     # 根元の苔: 高さの減衰 × まだらなノイズ × 縦溝に溜まる × 木ごとのランダム（量と高さがばらつく）
@@ -228,7 +243,7 @@ def gravel():
     m.link(fine.outputs["Fac"], hh.inputs[1])
     set_in(hh, 1, 0.0)
     m.link(hh.outputs["Value"], bump.inputs["Height"])
-    b = m.principled(rough=0.85)
+    b = m.principled(rough=0.85, spec=0.2)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
     m.link(bump.outputs["Normal"], b.inputs["Normal"])
     m.link(b.outputs["BSDF"], m.out.inputs["Surface"])
@@ -242,18 +257,29 @@ def ground():
     fine = noise(m, 40.0, 4.0, 0.5, pos, y=-200)
     col = ramp(m, [(0.0, (0.055, 0.075, 0.025)), (0.45, (0.085, 0.11, 0.035)), (0.62, (0.13, 0.085, 0.045)),
                    (1.0, (0.20, 0.12, 0.06))], mid.outputs["Fac"], y=200)
-    b = m.principled(rough=0.95)
+    b = m.principled(rough=0.95, spec=0.0)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
     bump = m.n("ShaderNodeBump", y=-200)
     set_in(bump, "Strength", 0.6)
     set_in(bump, "Distance", 0.08)
     m.link(fine.outputs["Fac"], bump.inputs["Height"])
     m.link(bump.outputs["Normal"], b.inputs["Normal"])
-    m.link(b.outputs["BSDF"], m.out.inputs["Surface"])
+    # 遠くの地面は空の地平の色に溶かす（地面の縁の一直線の水平線を消す）
+    cam = m.n("ShaderNodeCameraData", y=300)
+    fade = smooth_range(m, cam.outputs["View Distance"], 120.0, 500.0, y=300)
+    horizon = m.nt.nodes.new("ShaderNodeEmission")
+    horizon.location = (500, 250)
+    horizon.inputs["Color"].default_value = (0.74, 0.77, 0.80, 1.0)
+    mix = m.nt.nodes.new("ShaderNodeMixShader")
+    mix.location = (700, 0)
+    m.link(fade, mix.inputs["Fac"])
+    m.link(b.outputs["BSDF"], mix.inputs[1])
+    m.link(horizon.outputs["Emission"], mix.inputs[2])
+    m.link(mix.outputs["Shader"], m.out.inputs["Surface"])
     return m.mat
 
 
-def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True):
+def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True, spec=0.1):
     """御影石・安山岩: 個体ごとの濃淡（頂点属性 tint）、上向きの面に苔。"""
     m = Mat(name)
     pos = m.n("ShaderNodeTexCoord", y=0).outputs["Object"]
@@ -266,7 +292,7 @@ def stone(name="Sando_Stone", moss_amount=0.5, use_tint=True):
     else:
         tint_out = fine.outputs["Fac"]
     col = ramp(m, [(0.0, (0.20, 0.20, 0.19)), (0.5, (0.34, 0.33, 0.31)), (1.0, (0.46, 0.45, 0.42))], tint_out, y=350)
-    b = m.principled(rough=0.82, y=250)
+    b = m.principled(rough=0.82, y=250, spec=spec)
     m.link(col.outputs["Color"], b.inputs["Base Color"])
     bump = m.n("ShaderNodeBump", y=-200)
     set_in(bump, "Strength", 0.5)
@@ -378,7 +404,7 @@ def build_path(col, length=150.0):
 
 def build_ground(col):
     bm = bmesh.new()
-    box(bm, (0, 0, -0.10), (400, 400, 0.12))
+    box(bm, (0, 0, -0.10), (1500, 1500, 0.12))
     obj_from_bm("Sando_Ground", bm, ground(), col)
 
 
@@ -413,7 +439,7 @@ def build_torii(col, y=40.0):
         cone(bm, (sx, y, 2.5), 0.30, 0.24, 5.0, 16)                   # 柱（わずかに細る）
         cone(bm, (sx, y, 0.12), 0.34, 0.34, 0.24, 16)                  # 台座
     box(bm, (0, y, 4.05), (6.8, 0.24, 0.30))                           # 貫
-    box(bm, (0, y, 3.55), (0.30, 0.20, 0.5))                           # 額束
+    box(bm, (0, y, 4.52), (0.30, 0.20, 0.70))                          # 額束（貫と島木の間をつなぐ）
     obj_from_bm("Torii_Red", bm, red, col, smooth=True)
     bm = bmesh.new()
     box(bm, (0, y, 5.12), (8.4, 0.52, 0.30))                           # 笠木
@@ -453,9 +479,17 @@ def make_tree(props, preset_io, sc, species, name, loc, yaw, bark, **ov):
     return o
 
 
+def in_sight_line(x, y, crown_w):
+    """カメラから見て主役（x=6.6, y=0）の背後にある木か。背後の幹・枝葉が主役の縁に張り付いて見えるので除く。"""
+    if y <= 0:
+        return False
+    sight = 6.6 + (6.6 - CAM_X) / (-CAM_Y) * y            # カメラ→主役の視線を奥へ延長した x
+    return abs(x - sight) < 0.05 * (y - CAM_Y) + crown_w / 2 + 1.0
+
+
 def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0):
     bark = sugi_bark()
-    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0, bark,
+    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0, sugi_bark(hero=True),
                      quality=hero_quality, seed=hero_seed)
     rng = np.random.default_rng(11)
     sides = [-1, 1]
@@ -465,17 +499,32 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
         for s in sides:
             if s > 0 and abs(y) < 9.0:        # 主役の周り
                 continue
-            x = s * rng.uniform(8.0, 12.5)
+            # 乱数は先に全部引く（途中で捨てても、残りの木の seed・形が変わらないように k も必ず進める）
+            x = float(s * rng.uniform(8.0, 12.5))
             y_ = float(y + rng.uniform(-3, 3))
             H = float(rng.uniform(33, 47))
-            near = abs(y_) < 34
-            make_tree(props, preset_io, sc, "sugi", f"Cedar_{k:02d}", (float(x), y_, 0.0),
-                      float(rng.uniform(0, 6.28)), bark,
-                      quality="MEDIUM" if near else "PREVIEW", seed=int(100 + k), height_m=H,
-                      dbh_cm=float(rng.uniform(70, 115)), crown_width_m=float(rng.uniform(6.5, 9.5)),
-                      crown_base_ratio=float(rng.uniform(0.38, 0.5)), age_factor=float(rng.uniform(0.9, 1.3)),
+            yaw = float(rng.uniform(0, 6.28))
+            dbh = float(rng.uniform(70, 115))
+            cw = float(rng.uniform(6.5, 9.5))
+            base = float(rng.uniform(0.38, 0.5))
+            age = float(rng.uniform(0.9, 1.3))
+            idx, k = k, k + 1
+            if y_ < -5.0 and x > 0:                       # 右手前: 主役の隣で同じ太さに並ぶので外す
+                continue
+            if y_ < -5.0:                                  # 左手前: 画面の枠木として低くして残す
+                H, cw = min(H, 26.0), min(cw, 6.0)
+            if in_sight_line(x, y_, cw):
+                continue
+            make_tree(props, preset_io, sc, "sugi", f"Cedar_{idx:02d}", (x, y_, 0.0), yaw, bark,
+                      quality="MEDIUM" if abs(y_) < 34 else "PREVIEW", seed=int(100 + idx), height_m=H,
+                      dbh_cm=dbh, crown_width_m=cw, crown_base_ratio=base, age_factor=age,
                       leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0, foliage_amount=2.2)
-            k += 1
+    # 右の空きを補う（視線の外側）
+    for i, (x, y_) in enumerate(((17.5, 9.0), (19.0, 23.0))):
+        make_tree(props, preset_io, sc, "sugi", f"Cedar_R{i}", (x, y_, 0.0), 0.7 * (i + 1), bark,
+                  quality="MEDIUM", seed=int(300 + i), height_m=38.0 + 4 * i, dbh_cm=90.0 - 10 * i,
+                  crown_width_m=8.0, crown_base_ratio=0.45, leaf_scale=5.0, leaf_cluster=5, leaves_per_m=60.0,
+                  foliage_amount=2.2)
     # 遠景の森: 参道の両側とその奥。低品質＋葉の数を絞って軽くする
     rng = np.random.default_rng(23)
     j = 0
@@ -483,7 +532,7 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0)
         s = 1 if rng.random() < 0.5 else -1
         x = s * float(rng.uniform(15.0, 70.0))
         y = float(rng.uniform(-28.0, 150.0))            # カメラ(y=-44)の近くには置かない
-        if abs(x) < 17:
+        if abs(x) < 17 or in_sight_line(x, y, 5.0):
             continue
         make_tree(props, preset_io, sc, "sugi", f"Forest_{j:02d}", (x, y, 0.0), float(rng.uniform(0, 6.28)), bark,
                   quality="PREVIEW", seed=int(500 + j), height_m=float(rng.uniform(28, 48)),
@@ -510,12 +559,12 @@ def build_fog(col, density):
     m.link(ex.outputs["Value"], dens.inputs[0])
     set_in(dens, 1, density * 1.6)
     vs = m.n("ShaderNodeVolumeScatter", y=0)
-    set_in(vs, "Color", (0.86, 0.92, 1.0, 1.0))
+    set_in(vs, "Color", (0.93, 0.95, 0.98, 1.0))
     set_in(vs, "Anisotropy", 0.45)
     m.link(dens.outputs["Value"], vs.inputs["Density"])
     m.link(vs.outputs["Volume"], m.out.inputs["Volume"])
     bm = bmesh.new()
-    box(bm, (0, 0, 60), (330, 330, 120))
+    box(bm, (0, 0, 60), (900, 900, 120))
     o = obj_from_bm("Sando_Fog", bm, m.mat, col)
     o.display_type = "WIRE"
     o.visible_shadow = False
@@ -541,18 +590,27 @@ def build_world_and_light(sc):
         if t in types:
             sky.sky_type = t
             break
-    elev = math.radians(24)
-    to_sun = Vector((-0.74 * math.cos(elev), 0.67 * math.cos(elev), math.sin(elev)))     # 左手前から低く差し込む
+    elev = math.radians(28)
+    to_sun = Vector((-0.80 * math.cos(elev), -0.45 * math.cos(elev), math.sin(elev))).normalized()   # 左手前から低く
     az = math.atan2(to_sun.x, to_sun.y)
     sky.sun_elevation, sky.sun_rotation = elev, az
     if hasattr(sky, "sun_disc"):
         sky.sun_disc = False
-    bg.inputs["Strength"].default_value = 0.42
+    # 空の見た目（カメラ光線）は 0.42、間接光（影の中の明るさ）は 0.30
+    lp = nt.nodes.new("ShaderNodeLightPath")
+    lp.location = (0, -250)
+    strength = nt.nodes.new("ShaderNodeMath")
+    strength.operation = "MULTIPLY_ADD"
+    strength.location = (150, -250)
+    strength.inputs[1].default_value = 0.12
+    strength.inputs[2].default_value = 0.30
+    nt.links.new(lp.outputs["Is Camera Ray"], strength.inputs[0])
+    nt.links.new(strength.outputs["Value"], bg.inputs["Strength"])
     nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
     nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
     sun = bpy.data.lights.new("Sun", "SUN")
-    sun.energy = 3.2
-    sun.color = (1.0, 0.93, 0.82)
+    sun.energy = 4.5
+    sun.color = (1.0, 0.89, 0.74)
     sun.angle = math.radians(1.2)
     so = bpy.data.objects.new("Sun", sun)
     sc.collection.objects.link(so)
@@ -565,8 +623,9 @@ def build_camera(sc, view, hero_height):
     sc.collection.objects.link(co)
     sc.camera = co
     if view == "wide":
-        cam.lens = 24
-        loc, tgt = Vector((-3.2, -43.0, 1.5)), Vector((5.4, 0.0, hero_height * 0.42))
+        cam.lens = 22
+        cam.shift_y = 0.17
+        loc, tgt = Vector((CAM_X, CAM_Y, 1.5)), Vector((5.4, 0.0, hero_height * 0.22))
         res = (1100, 1600)
     elif view == "crown":
         cam.lens = 50
@@ -578,7 +637,7 @@ def build_camera(sc, view, hero_height):
         res = (1500, 1000)
     co.location = loc
     co.rotation_euler = (tgt - loc).to_track_quat("-Z", "Y").to_euler()
-    cam.clip_end = 600
+    cam.clip_end = 1600
     return res
 
 
@@ -620,7 +679,7 @@ def main(argv):
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--samples", type=int, default=96)
     ap.add_argument("--scale", type=float, default=1.0)
-    ap.add_argument("--fog", type=float, default=0.0004)
+    ap.add_argument("--fog", type=float, default=0.0007)
     ap.add_argument("--bg-trees", type=int, default=16)
     ap.add_argument("--forest", type=int, default=36, help="遠景の森の本数")
     ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"))
