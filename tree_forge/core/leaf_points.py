@@ -60,8 +60,9 @@ def _bearing_axes(sk: Skeleton):
     return out
 
 
-def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: float, theta_sd: float):
-    """軸に沿って per_m 枚/m で点を置く。位置・接線・弧上位置を返す。"""
+def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: float, theta_sd: float,
+           surface: bool = False):
+    """軸に沿って per_m 枚/m で点を置く。位置・接線を返す。surface=True は点を軸の半径ぶん外（樹皮の表面）へずらす（太い幹用）。"""
     P, Tn = [], []
     for a in axes:
         n_use = a.neck + 1 if a.neck >= 0 else a.n
@@ -83,6 +84,11 @@ def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: fl
         f = ((sa - s[idx]) / np.maximum(seg[idx], 1e-9))[:, None]
         pt = pos[idx] * (1 - f) + pos[idx + 1] * f
         tg = normalize(pos[idx + 1] - pos[idx])
+        if surface and a.radius is not None:
+            r = np.interp(sa, s, a.radius[:n_use])
+            e1, e2 = perp_basis(tg)
+            phi = rng.random(len(sa)) * (2.0 * math.pi)
+            pt = pt + (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2) * (0.9 * r)[:, None]
         P.append(pt)
         Tn.append(tg)
     if not P:
@@ -143,9 +149,11 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             extra.append(_place(sub1, per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
         if reach == "ALL":                                  # さらに手前の枝の外側 40%
             extra.append(_place(_sub_levels(sk, 2, done), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
-        # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける
+        # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける。
+        # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
-        extra.append(_place([a for a in live if a.level == 0 and not a.dead], per_m * 0.5, 0.93, rng, leaf_frac, theta, 0.25))
+        extra.append(_place([a for a in live if a.level == 0 and not a.dead], per_m * 1.0, 0.82, rng, leaf_frac, theta, 0.25,
+                            surface=True))
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
         n = len(pts)

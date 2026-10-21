@@ -369,12 +369,12 @@ def test_ring_verts_grow_with_trunk_radius():
 
 def test_giant_cedar_preset():
     p = species_params("sugi_giant", quality="HERO")
-    assert (p.height_m, p.trunk_profile_mode, p.crown_shape) == (55.0, "CUSTOM", "conical")
+    assert (p.height_m, p.trunk_profile_mode, p.crown_shape) == (55.0, "CUSTOM", "ovoid")
     t0 = time.time()
     t = pipeline.generate(p)
     assert time.time() - t0 <= 15.0
     H, W = pipeline.measure(t)
-    assert H == pytest.approx(55.0, rel=0.03) and W == pytest.approx(16.0, rel=0.08)
+    assert H == pytest.approx(55.0, rel=0.03) and W == pytest.approx(20.0, rel=0.08)
     assert t.mesh.tri_count <= 1_200_000
     trunk = t.skeleton.axes[0]
     d = lambda z: float(np.interp(z, trunk.pos[:, 2], trunk.radius)) * 200      # noqa: E731
@@ -387,9 +387,9 @@ def test_giant_cedar_preset():
     # 老齢木: 枯れ枝・折れ枝が多い
     ax = t.skeleton.axes
     assert sum(a.dead for a in ax) / len(ax) > 0.05 and sum(a.broken or a.neck >= 0 for a in ax) > 20
-    # 地上高 22 m（枝下高）までは幹が裸（自然落枝）
+    # 地上高 20 m 付近（枝下高）までは生きた枝が無い。残るのは枯れて折れた枝の根元（スタブ）だけ
     low = [a for a in ax if a.level == 1 and a.pos[0][2] < 20.0]
-    assert not low
+    assert low and all(a.dead and a.broken for a in low)
 
 
 @pytest.mark.parametrize("quality,radius,expected", [("MEDIUM", 0.4, 6), ("HERO", 1.2, 62)])
@@ -481,3 +481,38 @@ def test_foliage_controls_do_not_change_branches():
     for ov in (dict(foliage_amount=3.0), dict(leaf_reach="ALL"), dict(leaf_start=0.0),
                dict(leaf_max_instances=999)):
         assert mesh_hash(gen("keyaki", quality="PREVIEW", **ov)) == base, ov
+
+
+def test_trunk_stubs_below_crown_base():
+    kw = dict(quality="MEDIUM", height_m=30.0, crown_base_ratio=0.5, dead_branch_ratio=0.0)
+    off = gen("sugi", trunk_stub_density=0.0, **kw)
+    on = gen("sugi", trunk_stub_density=1.0, **kw)
+    hb = 0.5 * 30.0
+    low_off = [a for a in off.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
+    low_on = [a for a in on.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
+    assert not low_off and len(low_on) >= 8                       # 約 1 本/m × (15 − 1.2) m
+    trunk = on.skeleton.axes[0]
+    for a in low_on:
+        assert a.dead and a.broken and a.parent == 0 and a.pos[0][2] >= 1.2
+        r_t = float(np.interp(a.pos[0][2], trunk.pos[:, 2], trunk.radius))
+        reach = float(np.hypot(*(a.pos[-1, :2] - trunk.pos[a.parent_node, :2])))
+        assert reach >= r_t + 0.25, (reach, r_t)                    # 幹の表面から確かに突き出す
+        assert a.radius[0] > a.radius[-1] > 0.5 * a.radius[0]      # 折れ口は先細りしすぎない
+    # 他の枝（骨格・半径・折れ）には触れない: スタブは最後に足されるだけ
+    n0 = len(off.skeleton.axes)
+    assert len(on.skeleton.axes) == n0 + len(low_on)
+    for a, b in zip(off.skeleton.axes, on.skeleton.axes[:n0]):
+        assert np.array_equal(a.pos, b.pos) and np.array_equal(a.radius, b.radius)
+        assert (a.dead, a.broken, a.neck) == (b.dead, b.broken, b.neck)
+
+
+def test_trunk_stub_density_default_off_and_dead_gradient():
+    assert schema.BY_NAME["trunk_stub_density"].default == 0.0
+    # 樹冠の下側の枝ほど枯れやすい
+    t = gen("sugi_giant", quality="MEDIUM", dead_branch_ratio=0.2, trunk_stub_density=0.0)
+    l1 = [a for a in t.skeleton.axes if a.level == 1]
+    hb = 0.38 * 55.0
+    z = np.array([a.pos[0][2] for a in l1])
+    dead = np.array([a.dead for a in l1])
+    lower, upper = dead[z < hb + 0.4 * (55 - hb)].mean(), dead[z >= hb + 0.6 * (55 - hb)].mean()
+    assert lower > upper, (lower, upper)

@@ -150,6 +150,8 @@ def _build() -> list[Param]:
         P("broken_pos_min", "float", 0.15, 0.05, 0.95, "", "折れ位置(最小)", "枝長に対する折れ位置の下限", "damage"),
         P("broken_pos_max", "float", 0.8, 0.05, 0.98, "", "折れ位置(最大)", "枝長に対する折れ位置の上限", "damage"),
         P("top_break_height", "float", 0.0, 0.0, 0.98, "", "頂部折れ高", "0で無効。単幹のとき主幹をこの高さ比で折る", "damage"),
+        P("trunk_stub_density", "float", 0.0, 0.0, 3.0, "本/m", "枝下の枝痕（スタブ）",
+          "樹冠より下の裸の幹に残る、枯れて折れた枝の根元の数（幹の高さ1 mあたり）。0で無し", "damage"),
         # --- 葉 ---
         P("leaf_type", "enum", "BROAD", label="葉の種類", group="leaf", items=_enum(LEAF_TYPES, LEAF_TYPE_NAMES)),
         P("leaf_length_cm", "float", 6.0, 0.1, 30.0, "cm", "葉身長", "", "leaf", True),

@@ -281,6 +281,10 @@ def _child_specs(p, parents: list[Axis], level: int, rng) -> dict | None:
         length = sp["plen"] * ratio * f * rng.uniform(0.8, 1.15, m)
     sp["length"] = length
     ratio_dead = p.dead_branch_ratio * (0.5 + 0.5 * p.age_factor)
+    if level == 1:
+        # 樹冠の下側の枝ほど光が届かず枯れやすい（下端で最大 2 倍、上限 0.6）
+        t = np.clip((sp["start"][:, 2] - hb) / max(p.height_m - hb, 1e-6), 0.0, 1.0)
+        ratio_dead = np.minimum(ratio_dead * (1.0 + 1.0 * (1.0 - t)), 0.6)
     if level <= 2:
         sp["dead"] = sp["dead"] | (rng.random(m) < ratio_dead)
     return sp

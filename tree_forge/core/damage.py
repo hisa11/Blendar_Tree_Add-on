@@ -66,6 +66,49 @@ def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator) -
     ax.neck = kb
 
 
+STUB_PROTRUDE = (0.3, 1.5)      # 幹の表面からスタブが突き出す長さ [m]
+STUB_RADIUS_FRAC = (0.05, 0.09)  # スタブ付け根の半径 / その高さの幹の半径
+STUB_Z_MIN = 1.2                 # これより低い所（根張り）には付けない
+
+
+def add_trunk_stubs(p, sk: Skeleton, rng: np.random.Generator) -> None:
+    """樹冠より下の裸の幹に、枯れて折れた枝の根元（スタブ）を足す。
+
+    健全な骨格・半径・他の損傷の乱数には触れない（apply_damage の最後に、同じ rng の続きで引く）。
+    """
+    dens = p.trunk_stub_density
+    hb = p.crown_base_ratio * p.height_m
+    if dens <= 0.0 or hb <= STUB_Z_MIN + 1.0:
+        return
+    for trunk in [a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed and a.radius is not None]:
+        z_hi = min(hb * 0.97, float(trunk.pos[-1, 2]))
+        nn = int(dens * (z_hi - STUB_Z_MIN) + rng.random())
+        if nn <= 0:
+            continue
+        zs = np.sort(rng.uniform(STUB_Z_MIN, z_hi, nn))
+        phis = rng.uniform(0.0, 2.0 * np.pi) + np.arange(nn) * 2.399963 + rng.normal(0.0, 0.5, nn)
+        for z, phi in zip(zs, phis):
+            k = int(np.clip(np.searchsorted(trunk.pos[:, 2], z), 1, trunk.n - 2))
+            r_t = float(trunk.radius[k])
+            t = normalize(trunk.pos[k + 1] - trunk.pos[k - 1])
+            e1, e2 = perp_basis(t[None, :])
+            radial = np.cos(phi) * e1[0] + np.sin(phi) * e2[0]
+            a = np.radians(rng.uniform(78.0, 105.0))              # 幹の軸からの角度（ほぼ水平、やや垂れる）
+            d = normalize(np.cos(a) * t + np.sin(a) * radial)
+            length = r_t + rng.uniform(*STUB_PROTRUDE)
+            m = max(3, int(length / 0.25))
+            s = np.linspace(0.0, length, m + 1)
+            pos = trunk.pos[k] + d[None, :] * s[:, None]
+            pos[:, 2] -= 0.10 * (s / length) ** 2 * length * 0.5      # 先端ほどわずかに垂れる
+            r0 = r_t * rng.uniform(*STUB_RADIUS_FRAC)
+            radius = r0 * (1.0 - 0.25 * s / length)                  # 折れ口は健全時の太さのまま残る
+            horiz = radial.copy()
+            horiz[2] = 0.0
+            ax = sk.add(1, trunk.id, k, pos, normalize(horiz), dead=True, phase=float(rng.random()))
+            ax.radius = np.maximum(radius, p.min_radius_mm * 1e-3)
+            ax.broken = True
+
+
 def apply_damage(p, sk: Skeleton, st) -> None:
     rng = st.damage
     cm = sk.children_map()
@@ -93,4 +136,5 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             else:
                 sk.truncate(ax, kb + 1, cm)
                 ax.broken = True
+    add_trunk_stubs(p, sk, rng)
     sk.compact()
