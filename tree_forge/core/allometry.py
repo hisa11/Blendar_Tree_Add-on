@@ -121,8 +121,9 @@ _QUALITY = {
                     l3_cap=0, leaf_cap=20_000, tri_cap=30_000),
     "MEDIUM": dict(max_level=3, ring=(24, 10, 6, 4), seg_len=(0.25, 0.25, 0.12, 0.06), seg_max=(120, 48, 24, 8),
                    l3_cap=2200, leaf_cap=150_000, tri_cap=200_000),
-    "HERO": dict(max_level=3, ring=(48, 16, 8, 5), seg_len=(0.125, 0.125, 0.06, 0.03), seg_max=(240, 96, 48, 16),
-                 l3_cap=14_000, leaf_cap=1_500_000, tri_cap=1_200_000),
+    # 節の刻みは枝の太さに見合う粗さにして、三角形を節ではなく枝の本数に回す（L2 が 6 cm 刻みだと本数が増やせない）
+    "HERO": dict(max_level=3, ring=(48, 16, 8, 5), seg_len=(0.15, 0.20, 0.15, 0.08), seg_max=(240, 96, 48, 16),
+                 l3_cap=40_000, leaf_cap=1_500_000, tri_cap=1_600_000),
 }
 
 
