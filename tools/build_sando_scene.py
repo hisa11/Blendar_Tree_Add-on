@@ -3,7 +3,7 @@
     python tools/build_sando_scene.py --out sando.png                       # bpy モジュールで
     blender -b --factory-startup --python tools/build_sando_scene.py -- --out sando.png
 
-  --view wide|low     wide: 参道の入口から見上げる全景（縦長） / low: 幹の根元近くから見上げる（横長）
+  --view wide|low|crown   wide: 参道の入口から見上げる全景（縦長） / low: 幹の根元近くから見上げる / crown: 樹冠の拡大
   --seed N            巨大スギの乱数シード
   --samples N         Cycles のサンプル数（既定 96）   --scale 0.5  解像度の倍率
   --save-blend path   .blend も保存する
@@ -523,6 +523,10 @@ def build_camera(sc, view, hero_height):
         cam.lens = 28
         loc, tgt = Vector((-1.5, -54.0, 1.7)), Vector((4.6, 0.0, hero_height * 0.40))
         res = (1100, 1600)
+    elif view == "crown":
+        cam.lens = 50
+        loc, tgt = Vector((-4.0, -30.0, 22.0)), Vector((7.4, 0.0, 37.0))
+        res = (1300, 1000)
     else:
         cam.lens = 22
         loc, tgt = Vector((0.6, -9.5, 1.3)), Vector((6.6, -0.8, 9.0))
@@ -567,7 +571,7 @@ def addon_enable():
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="sando.png")
-    ap.add_argument("--view", choices=("wide", "low"), default="wide")
+    ap.add_argument("--view", choices=("wide", "low", "crown"), default="wide")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--samples", type=int, default=96)
     ap.add_argument("--scale", type=float, default=1.0)
