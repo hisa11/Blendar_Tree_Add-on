@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "sugi",
+  "name_ja": "スギ",
+  "latin": "Cryptomeria japonica",
+  "measured": {
+    "height_m": 30,
+    "dbh_cm": 80,
+    "crown_width_m": 7.5
+  },
+  "crown": {
+    "shape": "conical",
+    "base_ratio": 0.12
+  },
+  "growth": {
+    "apical_dominance": 0.95,
+    "gravitropism": 0.6,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 85,
+      "droop": 0.2,
+      "density": 5.0,
+      "length_ratio": 1.0,
+      "wobble": 0.12
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 70,
+      "droop": 0.4,
+      "density": 3.0,
+      "length_ratio": 0.45
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 60,
+      "droop": 0.5,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "NEEDLE_SPIRAL",
+    "length_cm": 1.2,
+    "per_m": 150,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.06,
+      0.18,
+      0.07
+    ],
+    "autumn_color": [
+      0.3,
+      0.2,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "strip_peel",
+    "displace_mm": 14
+  },
+  "_src": {
+    "height_m": "M:自生50m(conifers.org)/園芸15-18m(MBG)の中間",
+    "dbh_cm": "M:最大300cm の範囲内",
+    "crown_width_m": "M:MBG 6-9m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:ICRAF 3-25mm"
+  }
+}

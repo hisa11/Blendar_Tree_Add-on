@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "id": "kusunoki",
+  "name_ja": "クスノキ",
+  "latin": "Cinnamomum camphora",
+  "measured": {
+    "height_m": 20,
+    "dbh_cm": 120,
+    "crown_width_m": 25
+  },
+  "crown": {
+    "shape": "spherical",
+    "base_ratio": 0.15
+  },
+  "growth": {
+    "apical_dominance": 0.3,
+    "gravitropism": 0.15,
+    "phototropism": 0.2,
+    "trunk_split_count": 3,
+    "trunk_split_height": 0.2
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 50,
+      "droop": 0.05,
+      "density": 1.8,
+      "length_ratio": 1.0,
+      "wobble": 0.3
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.1,
+      "density": 2.5,
+      "length_ratio": 0.5
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.2,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 9,
+    "width_ratio": 0.4,
+    "per_m": 50,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.08,
+      0.24,
+      0.06
+    ],
+    "autumn_color": [
+      0.45,
+      0.3,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "fissured",
+    "displace_mm": 14
+  },
+  "_src": {
+    "height_m": "M:最大30m(Flora of China)の範囲内",
+    "dbh_cm": "M:最大300cmの範囲内",
+    "crown_width_m": "E",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:6-12cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.25
+  }
+}

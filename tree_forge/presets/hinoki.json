@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "id": "hinoki",
+  "name_ja": "ヒノキ",
+  "latin": "Chamaecyparis obtusa",
+  "measured": {
+    "height_m": 25,
+    "dbh_cm": 60,
+    "crown_width_m": 7
+  },
+  "crown": {
+    "shape": "conical",
+    "base_ratio": 0.1
+  },
+  "growth": {
+    "apical_dominance": 0.9,
+    "gravitropism": 0.5,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 70,
+      "droop": 0.2,
+      "density": 5.0,
+      "length_ratio": 1.0,
+      "wobble": 0.15
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 60,
+      "droop": 0.3,
+      "density": 3.0,
+      "length_ratio": 0.45
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.4,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "SCALE_TWIG",
+    "length_cm": 8,
+    "width_ratio": 0.35,
+    "per_m": 40,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.07,
+      0.2,
+      0.07
+    ],
+    "autumn_color": [
+      0.3,
+      0.2,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "strip_peel",
+    "displace_mm": 12
+  },
+  "_src": {
+    "height_m": "M:最大35m(Wikipedia)",
+    "dbh_cm": "E",
+    "crown_width_m": "E",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "E"
+  }
+}

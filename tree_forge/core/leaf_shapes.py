@@ -1,0 +1,149 @@
+"""葉・花のインスタンス元ジオメトリ（三角形のみ、単位は m）。
+
+ローカル座標: 葉は +Y が先端方向（付け根が原点）、+X が幅、+Z が表の法線。
+返り値は (verts (n,3), tris (m,3), uv (n,2))。
+"""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+
+from .util import normalize, perp_basis
+
+
+def _strip(widths: np.ndarray, length: float, fold: float, curl: float):
+    """中央の葉脈に沿った帯。widths[i] は行 i の半幅。両端の行は 1 頂点（付け根・先端）。"""
+    n = len(widths)
+    t = np.linspace(0.0, 1.0, n)
+    y = t * length
+    zc = -curl * length * t ** 2
+    verts = [(0.0, 0.0, 0.0)]
+    uv = [(0.5, 0.0)]
+    rows = []
+    wmax = max(float(widths.max()), 1e-9)
+    for i in range(1, n - 1):
+        w = widths[i]
+        base = len(verts)
+        verts += [(-w, y[i], zc[i] + fold * w), (0.0, y[i], zc[i]), (w, y[i], zc[i] + fold * w)]
+        uv += [(0.5 - 0.5 * w / wmax, t[i]), (0.5, t[i]), (0.5 + 0.5 * w / wmax, t[i])]
+        rows.append(base)
+    tip = len(verts)
+    verts.append((0.0, y[-1], zc[-1]))
+    uv.append((0.5, 1.0))
+    tris = []
+    r0 = rows[0]
+    tris += [(0, r0, r0 + 1), (0, r0 + 1, r0 + 2)]
+    for a, b in zip(rows[:-1], rows[1:]):
+        tris += [(a, b, b + 1), (a, b + 1, a + 1), (a + 1, b + 1, b + 2), (a + 1, b + 2, a + 2)]
+    rl = rows[-1]
+    tris += [(rl, tip, rl + 1), (rl + 1, tip, rl + 2)]
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
+def broad(length: float, width_ratio: float, n_rows: int = 7):
+    t = np.linspace(0.0, 1.0, n_rows)
+    w = 0.5 * length * width_ratio * np.sin(np.pi * t ** 0.85) ** 0.9
+    return _strip(w, length, fold=0.22, curl=0.12)
+
+
+def scale_twig(length: float, width_ratio: float, n_rows: int = 9):
+    t = np.linspace(0.0, 1.0, n_rows)
+    zig = 0.55 + 0.45 * (np.arange(n_rows) % 2)
+    w = 0.5 * length * width_ratio * (1.0 - 0.55 * t) * zig * np.sin(np.pi * np.clip(t, 0, 1) ** 0.5) ** 0.5
+    return _strip(w, length, fold=0.10, curl=0.08)
+
+
+def card(length: float, width_ratio: float):
+    w = 0.5 * length * width_ratio
+    verts = np.array([(-w, 0, 0), (w, 0, 0), (w, length, 0), (-w, length, 0)], float)
+    uv = np.array([(0, 0), (1, 0), (1, 1), (0, 1)], float)
+    return verts, np.array([(0, 1, 2), (0, 2, 3)], np.int32), uv
+
+
+def fan(radius: float, width_ratio: float, n_arc: int = 11):
+    """イチョウ: 扇形（中央に切れ込み）。width_ratio は使わず、半角 70°。"""
+    ang = np.linspace(-math.radians(70), math.radians(70), n_arc)
+    r = radius * (1.0 - 0.28 * np.exp(-((ang / 0.12) ** 2)))
+    verts = [(0.0, 0.0, 0.0)] + [(float(r[i] * math.sin(a)), float(r[i] * math.cos(a)), 0.05 * radius * (1 - math.cos(a)))
+                                  for i, a in enumerate(ang)]
+    uv = [(0.5, 0.0)] + [(0.5 + 0.5 * math.sin(a), 0.5 + 0.5 * math.cos(a)) for a in ang]
+    tris = [(0, i, i + 1) for i in range(1, n_arc)]
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
+def _needle(base: np.ndarray, d: np.ndarray, facing: np.ndarray, length: float, width: float):
+    side = normalize(np.cross(d, facing))
+    return [base - side * width * 0.5, base + side * width * 0.5, base + d * length]
+
+
+def needle_fascicle(length: float, count: int):
+    """針葉束: count 本の針が付け根から扇状に出る。"""
+    verts, uv, tris = [], [], []
+    w = max(length * 0.025, 0.0008)
+    for i in range(count):
+        a = (i - (count - 1) / 2.0) * math.radians(9.0)
+        d = np.array([math.sin(a), math.cos(a), 0.08])
+        d = d / np.linalg.norm(d)
+        b = len(verts)
+        verts += _needle(np.zeros(3), d, np.array([0.0, 0.0, 1.0]), length, w)
+        uv += [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
+        tris.append((b, b + 1, b + 2))
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
+def needle_sprig(needle_len: float, n_needles: int = 16):
+    """針葉のらせん: 短い枝に針がらせん状に付く。"""
+    verts, uv, tris = [], [], []
+    golden = math.radians(137.5)
+    step = 0.2 * needle_len
+    w = max(needle_len * 0.07, 0.0006)
+    for i in range(n_needles):
+        phi = i * golden
+        radial = np.array([math.cos(phi), 0.0, math.sin(phi)])
+        axis = np.array([0.0, 1.0, 0.0])
+        d = normalize(axis * math.cos(math.radians(35)) + radial * math.sin(math.radians(35)))
+        base = axis * i * step
+        b = len(verts)
+        verts += _needle(base, d, radial, needle_len, w)
+        uv += [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]
+        tris.append((b, b + 1, b + 2))
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
+def flower(radius: float):
+    """5弁花。中心が原点、+Z が表。"""
+    verts = [(0.0, 0.0, 0.0)]
+    uv = [(0.5, 0.5)]
+    tris = []
+    for i in range(5):
+        th = 2 * math.pi * i / 5
+        for a, rr, zz in ((th - 0.5, 0.55, 0.05), (th, 1.0, 0.18), (th + 0.5, 0.55, 0.05)):
+            verts.append((radius * rr * math.cos(a), radius * rr * math.sin(a), radius * zz))
+            uv.append((0.5 + 0.5 * rr * math.cos(a), 0.5 + 0.5 * rr * math.sin(a)))
+        b = 1 + 3 * i
+        tris += [(0, b, b + 1), (0, b + 1, b + 2)]
+    return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
+
+
+def leaf_source(p):
+    """パラメータに合う葉のジオメトリ。"""
+    L = p.leaf_length_cm * 0.01
+    t = p.leaf_type
+    if p.leaf_geom == "CARD" and t in ("BROAD", "FAN", "SCALE_TWIG"):
+        return card(L, p.leaf_width_ratio)
+    if t == "BROAD":
+        return broad(L, p.leaf_width_ratio)
+    if t == "FAN":
+        return fan(L, p.leaf_width_ratio)
+    if t == "SCALE_TWIG":
+        return scale_twig(L, p.leaf_width_ratio)
+    if t == "NEEDLE_FASCICLE":
+        return needle_fascicle(L, p.fascicle_count)
+    if t == "NEEDLE_SPIRAL":
+        return needle_sprig(L)
+    raise ValueError(t)
+
+
+def flower_source(p):
+    return flower(0.015 + 0.002 * p.leaf_length_cm)

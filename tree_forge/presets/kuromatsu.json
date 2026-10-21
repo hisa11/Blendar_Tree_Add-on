@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "id": "kuromatsu",
+  "name_ja": "クロマツ",
+  "latin": "Pinus thunbergii",
+  "measured": {
+    "height_m": 18,
+    "dbh_cm": 60,
+    "crown_width_m": 12
+  },
+  "crown": {
+    "shape": "umbrella",
+    "base_ratio": 0.35
+  },
+  "growth": {
+    "apical_dominance": 0.6,
+    "gravitropism": 0.3,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "WHORL",
+      "angle_deg": 65,
+      "droop": 0.1,
+      "density": 2.5,
+      "whorl_count": 4,
+      "length_ratio": 1.0,
+      "wobble": 0.35
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 60,
+      "droop": 0.2,
+      "density": 2.5,
+      "length_ratio": 0.45,
+      "wobble": 0.4
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.2,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "NEEDLE_FASCICLE",
+    "length_cm": 10,
+    "fascicle": 2,
+    "per_m": 22,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.07,
+      0.2,
+      0.06
+    ],
+    "autumn_color": [
+      0.3,
+      0.2,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "scaly_plates",
+    "displace_mm": 18
+  },
+  "_src": {
+    "height_m": "M:園芸6-18m(MBG)/最大40m",
+    "dbh_cm": "E",
+    "crown_width_m": "E",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:7-12cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.35,
+    "trunk_lean_deg": 6.0
+  }
+}

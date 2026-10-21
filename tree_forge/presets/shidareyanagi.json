@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "shidareyanagi",
+  "name_ja": "シダレヤナギ",
+  "latin": "Salix babylonica",
+  "measured": {
+    "height_m": 12,
+    "dbh_cm": 70,
+    "crown_width_m": 13
+  },
+  "crown": {
+    "shape": "weeping",
+    "base_ratio": 0.22
+  },
+  "growth": {
+    "apical_dominance": 0.3,
+    "gravitropism": -0.2,
+    "phototropism": 0.2,
+    "trunk_split_count": 3,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 40,
+      "droop": 0.4,
+      "density": 2.0,
+      "length_ratio": 1.0,
+      "wobble": 0.3
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 45,
+      "droop": 0.9,
+      "density": 3.0,
+      "length_ratio": 0.6
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 45,
+      "droop": 1.0,
+      "density": 4.0,
+      "length_ratio": 0.45
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 11,
+    "width_ratio": 0.12,
+    "per_m": 40,
+    "geom": "CUTOUT_MESH",
+    "color": [
+      0.18,
+      0.38,
+      0.09
+    ],
+    "autumn_color": [
+      0.9,
+      0.78,
+      0.15
+    ]
+  },
+  "bark": {
+    "type": "fissured",
+    "displace_mm": 12
+  },
+  "_src": {
+    "height_m": "M:UF/IFAS 9-15m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:9-15m以上",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:7-15cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.3
+  }
+}

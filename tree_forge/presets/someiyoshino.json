@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "id": "someiyoshino",
+  "name_ja": "ソメイヨシノ",
+  "latin": "Prunus x yedoensis",
+  "measured": {
+    "height_m": 10,
+    "dbh_cm": 50,
+    "crown_width_m": 11
+  },
+  "crown": {
+    "shape": "spherical",
+    "base_ratio": 0.2
+  },
+  "growth": {
+    "apical_dominance": 0.3,
+    "gravitropism": 0.1,
+    "phototropism": 0.2,
+    "trunk_split_count": 3,
+    "trunk_split_height": 0.25
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 50,
+      "droop": 0.1,
+      "density": 2.0,
+      "length_ratio": 1.0,
+      "wobble": 0.35
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.2,
+      "density": 2.5,
+      "length_ratio": 0.5
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.3,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 10,
+    "width_ratio": 0.5,
+    "per_m": 35,
+    "geom": "CUTOUT_MESH",
+    "flower_density": 0.8,
+    "color": [
+      0.16,
+      0.36,
+      0.08
+    ],
+    "autumn_color": [
+      0.78,
+      0.3,
+      0.05
+    ],
+    "flower_color": [
+      0.97,
+      0.78,
+      0.85
+    ]
+  },
+  "bark": {
+    "type": "smooth_lenticel",
+    "displace_mm": 3
+  },
+  "_src": {
+    "height_m": "M:MBG 9-12m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:MBG 9-12m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:最大12.7cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.25
+  }
+}

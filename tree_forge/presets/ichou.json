@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "id": "ichou",
+  "name_ja": "イチョウ",
+  "latin": "Ginkgo biloba",
+  "measured": {
+    "height_m": 20,
+    "dbh_cm": 70,
+    "crown_width_m": 10.5
+  },
+  "crown": {
+    "shape": "ovoid",
+    "base_ratio": 0.2
+  },
+  "growth": {
+    "apical_dominance": 0.8,
+    "gravitropism": 0.4,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 50,
+      "droop": 0.05,
+      "density": 3.0,
+      "length_ratio": 1.0,
+      "wobble": 0.2
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.1,
+      "density": 2.5,
+      "length_ratio": 0.45
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.1,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "FAN",
+    "length_cm": 3.5,
+    "per_m": 50,
+    "geom": "CUTOUT_MESH",
+    "color": [
+      0.14,
+      0.34,
+      0.07
+    ],
+    "autumn_color": [
+      0.95,
+      0.78,
+      0.08
+    ]
+  },
+  "bark": {
+    "type": "fissured",
+    "displace_mm": 9
+  },
+  "_src": {
+    "height_m": "M:MBG 15-24m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:MBG 9-12m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:幅5-8cm(Flora of China)→扇の半径3.5cm"
+  }
+}

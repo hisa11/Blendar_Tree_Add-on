@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "shirakaba",
+  "name_ja": "シラカバ",
+  "latin": "Betula platyphylla",
+  "measured": {
+    "height_m": 12,
+    "dbh_cm": 30,
+    "crown_width_m": 6
+  },
+  "crown": {
+    "shape": "ovoid",
+    "base_ratio": 0.25
+  },
+  "growth": {
+    "apical_dominance": 0.7,
+    "gravitropism": 0.3,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 50,
+      "droop": 0.1,
+      "density": 3.0,
+      "length_ratio": 1.0,
+      "wobble": 0.25
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.3,
+      "density": 3.0,
+      "length_ratio": 0.5
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.5,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 6,
+    "width_ratio": 0.8,
+    "per_m": 55,
+    "geom": "CUTOUT_MESH",
+    "color": [
+      0.14,
+      0.34,
+      0.07
+    ],
+    "autumn_color": [
+      0.92,
+      0.72,
+      0.08
+    ]
+  },
+  "bark": {
+    "type": "smooth_lenticel",
+    "displace_mm": 2
+  },
+  "_src": {
+    "height_m": "M:MBG 9-12m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:MBG 4.6-7.6m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:3-9cm"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "id": "picea_abies",
+  "name_ja": "ヨーロッパトウヒ",
+  "latin": "Picea abies",
+  "measured": {
+    "height_m": 35,
+    "dbh_cm": 100,
+    "crown_width_m": 9
+  },
+  "crown": {
+    "shape": "conical",
+    "base_ratio": 0.05
+  },
+  "growth": {
+    "apical_dominance": 0.98,
+    "gravitropism": 0.0,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "WHORL",
+      "angle_deg": 90,
+      "droop": 0.4,
+      "density": 6.0,
+      "whorl_count": 5,
+      "length_ratio": 1.0,
+      "wobble": 0.08
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 70,
+      "droop": 0.6,
+      "density": 3.0,
+      "length_ratio": 0.45
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 60,
+      "droop": 0.7,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "NEEDLE_SPIRAL",
+    "length_cm": 1.8,
+    "per_m": 120,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.04,
+      0.15,
+      0.06
+    ],
+    "autumn_color": [
+      0.25,
+      0.18,
+      0.05
+    ]
+  },
+  "bark": {
+    "type": "flaking",
+    "displace_mm": 10
+  },
+  "_src": {
+    "height_m": "M:conifers.org 40-50m",
+    "dbh_cm": "M:100-150cm",
+    "crown_width_m": "M:Van den Berk 8-10m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:1-2.5cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.06
+  }
+}

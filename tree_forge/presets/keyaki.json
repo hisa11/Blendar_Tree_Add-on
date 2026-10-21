@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "id": "keyaki",
+  "name_ja": "ケヤキ",
+  "latin": "Zelkova serrata",
+  "measured": {
+    "height_m": 20,
+    "dbh_cm": 80,
+    "crown_width_m": 18
+  },
+  "crown": {
+    "shape": "vase",
+    "base_ratio": 0.28
+  },
+  "growth": {
+    "apical_dominance": 0.35,
+    "gravitropism": 0.25,
+    "phototropism": 0.2,
+    "trunk_split_count": 3,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 38,
+      "droop": 0.05,
+      "density": 2.2,
+      "length_ratio": 1.0,
+      "wobble": 0.3
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 45,
+      "droop": 0.1,
+      "density": 2.5,
+      "length_ratio": 0.5
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 50,
+      "droop": 0.15,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 6,
+    "width_ratio": 0.45,
+    "per_m": 60,
+    "geom": "CUTOUT_MESH",
+    "color": [
+      0.1,
+      0.28,
+      0.05
+    ],
+    "autumn_color": [
+      0.7,
+      0.38,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "flaking",
+    "displace_mm": 8
+  },
+  "_src": {
+    "height_m": "M:MBG 15-24m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:MBG 15-24m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:3.8-12cm"
+  }
+}

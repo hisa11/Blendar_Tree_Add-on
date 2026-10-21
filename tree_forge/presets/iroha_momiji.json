@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "id": "iroha_momiji",
+  "name_ja": "イロハモミジ",
+  "latin": "Acer palmatum",
+  "measured": {
+    "height_m": 6,
+    "dbh_cm": 30,
+    "crown_width_m": 6.5
+  },
+  "crown": {
+    "shape": "spherical",
+    "base_ratio": 0.15
+  },
+  "growth": {
+    "apical_dominance": 0.3,
+    "gravitropism": 0.1,
+    "phototropism": 0.2,
+    "trunk_split_count": 3,
+    "trunk_split_height": 0.2
+  },
+  "levels": [
+    {
+      "phyllotaxis": "OPPOSITE",
+      "angle_deg": 55,
+      "droop": 0.1,
+      "density": 3.0,
+      "length_ratio": 1.0,
+      "wobble": 0.35
+    },
+    {
+      "phyllotaxis": "OPPOSITE",
+      "angle_deg": 55,
+      "droop": 0.2,
+      "density": 3.0,
+      "length_ratio": 0.5
+    },
+    {
+      "phyllotaxis": "OPPOSITE",
+      "angle_deg": 55,
+      "droop": 0.3,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "BROAD",
+    "length_cm": 7,
+    "width_ratio": 1.0,
+    "per_m": 55,
+    "geom": "CUTOUT_MESH",
+    "color": [
+      0.12,
+      0.32,
+      0.07
+    ],
+    "autumn_color": [
+      0.78,
+      0.07,
+      0.03
+    ]
+  },
+  "bark": {
+    "type": "smooth_lenticel",
+    "displace_mm": 2
+  },
+  "_src": {
+    "height_m": "M:MBG 3-7.6m",
+    "dbh_cm": "E",
+    "crown_width_m": "M:MBG 3-7.6m",
+    "growth": "E",
+    "levels": "E",
+    "leaves.length_cm": "M:5-13cm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.3
+  }
+}
