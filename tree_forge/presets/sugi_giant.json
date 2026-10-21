@@ -9,12 +9,12 @@
     "crown_width_m": 20
   },
   "crown": {
-    "shape": "ovoid",
+    "shape": "conical",
     "base_ratio": 0.38
   },
   "growth": {
     "apical_dominance": 0.85,
-    "gravitropism": 0.3,
+    "gravitropism": 0.4,
     "phototropism": 0.2,
     "trunk_split_count": 1,
     "trunk_split_height": 0.3
@@ -23,7 +23,7 @@
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 80,
-      "droop": 0.6,
+      "droop": 0.45,
       "density": 3.2,
       "length_ratio": 1.0,
       "wobble": 0.3,
@@ -32,7 +32,7 @@
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 65,
-      "droop": 0.6,
+      "droop": 0.55,
       "density": 2.6,
       "length_ratio": 0.45,
       "wobble": 0.35
@@ -40,7 +40,7 @@
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 55,
-      "droop": 0.7,
+      "droop": 0.6,
       "density": 4.0,
       "length_ratio": 0.4
     }

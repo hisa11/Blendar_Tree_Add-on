@@ -369,7 +369,7 @@ def test_ring_verts_grow_with_trunk_radius():
 
 def test_giant_cedar_preset():
     p = species_params("sugi_giant", quality="HERO")
-    assert (p.height_m, p.trunk_profile_mode, p.crown_shape) == (55.0, "CUSTOM", "ovoid")
+    assert (p.height_m, p.trunk_profile_mode, p.crown_shape) == (55.0, "CUSTOM", "conical")
     t0 = time.time()
     t = pipeline.generate(p)
     assert time.time() - t0 <= 15.0
