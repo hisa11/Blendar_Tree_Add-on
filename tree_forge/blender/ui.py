@@ -4,7 +4,7 @@ from __future__ import annotations
 import bpy
 from bpy.types import Panel, UIList
 
-from .. import props, schema
+from .. import compat, props, schema
 from ..core import allometry
 
 CATEGORY = "TreeForge"
@@ -70,6 +70,7 @@ class TREEFORGE_PT_main(_Panel):
             if pg.info:
                 lay.label(text=pg.info)
         lay.prop(pg, "advanced", icon="PREFERENCES")
+        lay.label(text=f"TreeForge {compat.build_label()}")
 
 
 class TREEFORGE_PT_trunk(_Panel):

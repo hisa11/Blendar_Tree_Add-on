@@ -62,7 +62,7 @@ Geometry Nodes のモディファイア入力（`modifier["Socket_x"]` / `modifi
 ## インストール
 
 ```
-python tools/build_zip.py        # dist/tree_forge-0.1.0.zip ができる
+python tools/build_zip.py        # dist/tree_forge-0.1.0+<コミット数>.<コミット>.zip ができる（どのビルドか分かるよう、zip 内のバージョンに git の情報が付く）
 ```
 
 Blender の「プリファレンス → 拡張機能 → ディスクからインストール」でその zip を選びます。

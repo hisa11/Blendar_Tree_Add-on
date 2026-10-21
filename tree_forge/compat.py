@@ -6,6 +6,18 @@ from pathlib import Path
 import bpy
 
 
+def build_label() -> str:
+    """このビルドの表示用バージョン（zip 化したときに入る build_info.json から。無ければ開発版）。
+
+    例: 0.1.0+93.d4453be（0.1.0 の 93 コミット目、コミット d4453be）。未コミットの変更を含むと末尾に .dirty。"""
+    import json
+    try:
+        info = json.loads((Path(__file__).parent / "build_info.json").read_text(encoding="utf-8"))
+        return f'{info["version"]}（{info["built_at"]}）'
+    except (OSError, ValueError, KeyError):
+        return "開発版（zip 化していない）"
+
+
 def has_thin_wall(principled) -> bool:
     """Principled BSDF に Thin Wall 入力があるか（Blender 5.2 以降）。"""
     return "Thin Wall" in principled.inputs
