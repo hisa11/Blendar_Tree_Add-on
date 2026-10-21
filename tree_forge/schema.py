@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 SPECIES_IDS = (
-    "sugi", "hinoki", "kuromatsu", "keyaki", "someiyoshino", "ichou",
+    "sugi", "sugi_giant", "hinoki", "kuromatsu", "keyaki", "someiyoshino", "ichou",
     "iroha_momiji", "shirakaba", "kusunoki", "quercus_robur", "picea_abies", "shidareyanagi",
 )
 SPECIES_NAMES = {
-    "sugi": "スギ", "hinoki": "ヒノキ", "kuromatsu": "クロマツ", "keyaki": "ケヤキ",
+    "sugi": "スギ", "sugi_giant": "巨大スギ（御神木）", "hinoki": "ヒノキ", "kuromatsu": "クロマツ", "keyaki": "ケヤキ",
     "someiyoshino": "ソメイヨシノ", "ichou": "イチョウ", "iroha_momiji": "イロハモミジ",
     "shirakaba": "シラカバ", "kusunoki": "クスノキ", "quercus_robur": "ヨーロッパナラ",
     "picea_abies": "ヨーロッパトウヒ", "shidareyanagi": "シダレヤナギ", "custom": "カスタム",

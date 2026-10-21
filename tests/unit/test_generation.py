@@ -354,3 +354,52 @@ def test_leaf_scale_param():
     a = gen("keyaki", quality="PREVIEW", season=0.5, leaf_scale=1.0).leaves.scale[:, 0].mean()
     b = gen("keyaki", quality="PREVIEW", season=0.5, leaf_scale=2.0).leaves.scale[:, 0].mean()
     assert b / a == pytest.approx(2.0, rel=0.05)
+
+
+# --- 太い幹の細密化と巨大スギ -----------------------------------------------------
+def test_ring_verts_grow_with_trunk_radius():
+    rv = allometry.ring_verts
+    assert rv("PREVIEW", 0, 3.0) == 12                                   # プレビューは増やさない
+    assert rv("MEDIUM", 0, 0.2) == 24 and rv("HERO", 0, 0.2) == 48       # 細い幹は表どおり
+    assert rv("MEDIUM", 0, 1.2) > 24 and rv("HERO", 0, 1.3) > rv("HERO", 0, 0.5)
+    assert rv("HERO", 0, 50.0) == 256 and rv("MEDIUM", 0, 50.0) == 96    # 上限
+    assert all(rv(q, 0, r) % 4 == 0 for q in ("MEDIUM", "HERO") for r in (0.3, 0.77, 1.31))
+    assert rv("HERO", 1, 5.0) == 16 and rv("HERO", 3, 5.0) == 5          # 枝は半径に依らない
+
+
+def test_giant_cedar_preset():
+    p = species_params("sugi_giant", quality="HERO")
+    assert (p.height_m, p.trunk_profile_mode, p.crown_shape) == (55.0, "CUSTOM", "conical")
+    t0 = time.time()
+    t = pipeline.generate(p)
+    assert time.time() - t0 <= 15.0
+    H, W = pipeline.measure(t)
+    assert H == pytest.approx(55.0, rel=0.03) and W == pytest.approx(16.0, rel=0.08)
+    assert t.mesh.tri_count <= 1_200_000
+    trunk = t.skeleton.axes[0]
+    d = lambda z: float(np.interp(z, trunk.pos[:, 2], trunk.radius)) * 200      # noqa: E731
+    assert d(1.3) == pytest.approx(261, rel=0.03)                        # 胸高直径 約 2.6 m
+    assert d(0.0) > d(1.3) > d(30.0) > d(50.0)
+    rings, V, _ = axis_rings(t, 0)
+    assert V == 256                                                      # 太い幹はリングを細かく切る
+    arc = 2 * np.pi * trunk.radius[0] / V
+    assert arc < 0.05
+    # 老齢木: 枯れ枝・折れ枝が多い
+    ax = t.skeleton.axes
+    assert sum(a.dead for a in ax) / len(ax) > 0.05 and sum(a.broken or a.neck >= 0 for a in ax) > 20
+    # 地上高 22 m（枝下高）までは幹が裸（自然落枝）
+    low = [a for a in ax if a.level == 1 and a.pos[0][2] < 20.0]
+    assert not low
+
+
+@pytest.mark.parametrize("quality,radius,expected", [("MEDIUM", 0.4, 6), ("HERO", 1.2, 62)])
+def test_bark_ridge_count_follows_circumference(quality, radius, expected):
+    """縦筋の本数は円周から決まる（幅 12 cm）。リングで解像できる範囲（V/4）に収まる。"""
+    prof = [(0.0, radius * 200), (1.0, radius * 200 * 0.97)]
+    t = gen("sugi", quality=quality, trunk_profile_mode="CUSTOM", profile=prof, trunk_irregularity=0.0,
+            burl_density=0.0, root_flare_scale=1.0, bark_ridge_mm=30.0, height_m=20, broken_branch_ratio=0.0)
+    rings, V, _ = axis_rings(t, 0)
+    r = ring_radii(rings)[len(rings) // 2]
+    spec = np.abs(np.fft.rfft(r - r.mean()))
+    k = int(np.argmax(spec[2:V // 2])) + 2
+    assert abs(k - expected) <= 2, (V, k, expected)

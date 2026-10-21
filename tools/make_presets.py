@@ -26,7 +26,7 @@ def lv(angle, droop, density, ratio=None, phyl="SPIRAL", whorl=4, wobble=None, v
 
 
 def sp(id, name_ja, latin, H, D, W, shape, base, apical, grav, levels, leaf, bark, src,
-       split=1, split_h=0.3, trunk=None, damage=None, growth=None, photo=0.2):
+       split=1, split_h=0.3, trunk=None, damage=None, growth=None, photo=0.2, profile=None):
     g = {"apical_dominance": apical, "gravitropism": grav, "phototropism": photo,
          "trunk_split_count": split, "trunk_split_height": split_h}
     g.update(growth or {})
@@ -44,6 +44,8 @@ def sp(id, name_ja, latin, H, D, W, shape, base, apical, grav, levels, leaf, bar
         d["trunk"] = trunk
     if damage:
         d["damage"] = damage
+    if profile:
+        d["profile"] = profile
     return d
 
 
@@ -54,11 +56,25 @@ GREEN_LIGHT = [0.16, 0.36, 0.08]
 PRESETS = [
     sp("sugi", "スギ", "Cryptomeria japonica", 30, 80, 7.5, "conical", 0.12, 0.95, 0.6,
        [lv(85, 0.20, 5.0, 1.0, wobble=0.12), lv(70, 0.40, 3.0, 0.45), lv(60, 0.50, 4.0, 0.40)],
-       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 150, "scale": 4.0, "geom": "CUTOUT_MESH", "evergreen": True,
+       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 60, "cluster": 4, "scale": 4.0, "geom": "CUTOUT_MESH", "evergreen": True,
         "color": [0.09, 0.24, 0.09], "autumn_color": [0.30, 0.20, 0.06]},
        {"type": "strip_peel", "displace_mm": 14},
        {"height_m": "M:自生50m(conifers.org)/園芸15-18m(MBG)の中間", "dbh_cm": "M:最大300cm の範囲内", "crown_width_m": "M:MBG 6-9m",
         "growth": "E", "levels": "E", "leaves.length_cm": "M:ICRAF 3-25mm"}),
+    sp("sugi_giant", "巨大スギ（御神木）", "Cryptomeria japonica", 55, 260, 16, "conical", 0.40, 0.85, 0.5,
+       [lv(80, 0.35, 3.2, 1.0, wobble=0.30, var=14), lv(65, 0.50, 2.6, 0.45, wobble=0.35),
+        lv(55, 0.60, 4.0, 0.40)],
+       {"type": "NEEDLE_SPIRAL", "length_cm": 1.2, "per_m": 70, "cluster": 5, "scale": 5.0, "geom": "CUTOUT_MESH",
+        "evergreen": True, "color": [0.08, 0.23, 0.09], "autumn_color": [0.30, 0.20, 0.06]},
+       {"type": "strip_peel", "displace_mm": 60},
+       {"height_m": "M:自生50(-65)m(conifers.org)の範囲内", "dbh_cm": "M:最大300cm(conifers.org)の範囲内",
+        "crown_width_m": "E:老齢木、枝下が高い(自然落枝: ICRAF)", "crown.base_ratio": "E:自然落枝で幹が長く裸になる(ICRAF)",
+        "growth": "E", "levels": "E", "profile": "E:ほぼ円筒で根元が張り出す老齢木の形"},
+       trunk={"trunk_profile_mode": "CUSTOM", "trunk_wobble": 0.08, "trunk_lean_deg": 1.0, "root_flare_height": 0.035,
+              "root_flare_scale": 1.25, "root_count": 8, "burl_density": 0.6, "trunk_irregularity": 0.5,
+              "branch_irregularity": 0.3},
+       damage={"age_factor": 1.5, "dead_branch_ratio": 0.12, "broken_branch_ratio": 0.10, "broken_hang_ratio": 0.35},
+       profile=[[0.0, 300], [0.012, 272], [0.03, 258], [0.12, 244], [0.40, 214], [0.70, 150], [0.90, 70], [1.0, 8]]),
     sp("hinoki", "ヒノキ", "Chamaecyparis obtusa", 25, 60, 7, "conical", 0.10, 0.9, 0.5,
        [lv(70, 0.20, 5.0, 1.0, wobble=0.15), lv(60, 0.30, 3.0, 0.45), lv(55, 0.40, 4.0, 0.40)],
        {"type": "SCALE_TWIG", "length_cm": 8, "width_ratio": 0.35, "per_m": 40, "scale": 1.6, "geom": "CUTOUT_MESH", "evergreen": True,

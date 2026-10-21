@@ -45,9 +45,11 @@ def test_builtin_presets_load_and_have_provenance(sid):
     assert 1.0 <= ns.height_m <= 70.0
 
 
-def test_all_twelve_species_present():
+def test_all_species_present():
+    """仕様の 12 種 + 巨大スギ（御神木）。JSON と SPECIES_IDS が一致する。"""
     files = {p.stem for p in (ROOT / "tree_forge" / "presets").glob("*.json")}
-    assert files == set(schema.SPECIES_IDS) and len(files) == 12
+    assert files == set(schema.SPECIES_IDS) and len(files) == 13
+    assert "sugi_giant" in files
 
 
 def test_preset_values_match_spec_table():

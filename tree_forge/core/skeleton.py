@@ -351,8 +351,10 @@ def clip_to_envelope(p, sk: Skeleton, tol: float = 1.0) -> None:
 def enforce_budget(p, sk: Skeleton, rng) -> None:
     """三角形数の見積りが品質の上限を超えるときは、細い枝（L3 → L2）からランダムに間引く。"""
     q = allometry.quality_table(p.quality)
-    ring = q["ring"]
     target = q["tri_cap"] * 0.97
+    stems = [a for a in sk.axes if a.level == 0 and a.radius is not None]
+    r_stem = max((a.radius[0] for a in stems), default=0.0) * p.root_flare_scale
+    ring = [max(3, allometry.ring_verts(p.quality, lv, r_stem)) for lv in range(4)]
 
     def cost(a: Axis) -> int:
         return ((a.n - 1) * 2 + 1) * ring[min(a.level, 3)]

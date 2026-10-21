@@ -126,6 +126,21 @@ _QUALITY = {
 }
 
 
+# 幹（レベル0）のリング頂点数: 太い木では断面の弧長が一定以下になるまで増やす（樹皮の縦筋を表現するため）
+_RING_SPACING = {"PREVIEW": None, "MEDIUM": 0.12, "HERO": 0.03}       # [m]
+_RING_CAP = {"PREVIEW": 12, "MEDIUM": 96, "HERO": 256}
+
+
+def ring_verts(quality: str, level: int, r_max: float = 0.0) -> int:
+    """レベル level の軸のリング頂点数。r_max はそのレベルの最大の半径[m]（幹のみ使う）。"""
+    base = _QUALITY[quality]["ring"][min(level, 3)]
+    spacing = _RING_SPACING[quality]
+    if level != 0 or spacing is None:
+        return base
+    v = int(round(2 * math.pi * r_max / spacing / 4)) * 4
+    return max(base, min(_RING_CAP[quality], v))
+
+
 def quality_table(quality: str) -> dict:
     return _QUALITY[quality]
 

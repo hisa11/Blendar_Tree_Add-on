@@ -20,6 +20,7 @@ HARMONIC_W = (1.6, 1.0, 0.7, 0.5, 0.35)     # 2次(楕円)を強める
 AMP0 = 0.18                                  # irregularity=1 のときの基準振幅
 ECCENTRIC = 0.12                             # 偏心の最大量（半径比 × irregularity）
 TWIST_SD = 0.35                              # 位相の回転 [rad/m] の標準偏差
+RIDGE_W1, RIDGE_W2 = 0.12, 0.35              # 縦筋の幅 [m]（細かい筋 / 粗い筋）
 
 
 def section_factors(rng, p, *, s, z, r, L, level, is_root, phi, irr, valid):
@@ -86,7 +87,9 @@ def _trunk_features(rng, p, F, s, z, r, L, phi, age):
     # 縦筋（リングの分割が十分なときだけ）
     if p.bark_ridge_mm > 0.0 and V >= 12:
         rel = np.clip(p.bark_ridge_mm * 1e-3 / np.maximum(r, 1e-3), 0.0, 0.25)[:, None]
-        k1, k2 = max(3, V // 3), max(2, V // 4)
+        circ = 2 * math.pi * float(r.mean())
+        k1 = int(np.clip(round(circ / RIDGE_W1), 3, max(3, V // 4)))
+        k2 = int(np.clip(round(circ / RIDGE_W2), 2, max(2, V // 6)))
         sf = np.clip(s / max(L, 1e-9), 0.0, 1.0)
         psi1 = rng.uniform(0, 2 * math.pi) + 2.5 * smooth_sample_1d(rng.uniform(-1, 1, 8), sf)
         psi2 = rng.uniform(0, 2 * math.pi) + 2.5 * smooth_sample_1d(rng.uniform(-1, 1, 8), sf)

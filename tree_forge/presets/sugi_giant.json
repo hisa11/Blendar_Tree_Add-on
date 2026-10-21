@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "id": "sugi_giant",
+  "name_ja": "巨大スギ（御神木）",
+  "latin": "Cryptomeria japonica",
+  "measured": {
+    "height_m": 55,
+    "dbh_cm": 260,
+    "crown_width_m": 16
+  },
+  "crown": {
+    "shape": "conical",
+    "base_ratio": 0.4
+  },
+  "growth": {
+    "apical_dominance": 0.85,
+    "gravitropism": 0.5,
+    "phototropism": 0.2,
+    "trunk_split_count": 1,
+    "trunk_split_height": 0.3
+  },
+  "levels": [
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 80,
+      "droop": 0.35,
+      "density": 3.2,
+      "length_ratio": 1.0,
+      "wobble": 0.3,
+      "angle_var_deg": 14
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 65,
+      "droop": 0.5,
+      "density": 2.6,
+      "length_ratio": 0.45,
+      "wobble": 0.35
+    },
+    {
+      "phyllotaxis": "SPIRAL",
+      "angle_deg": 55,
+      "droop": 0.6,
+      "density": 4.0,
+      "length_ratio": 0.4
+    }
+  ],
+  "leaves": {
+    "type": "NEEDLE_SPIRAL",
+    "length_cm": 1.2,
+    "per_m": 70,
+    "cluster": 5,
+    "scale": 5.0,
+    "geom": "CUTOUT_MESH",
+    "evergreen": true,
+    "color": [
+      0.08,
+      0.23,
+      0.09
+    ],
+    "autumn_color": [
+      0.3,
+      0.2,
+      0.06
+    ]
+  },
+  "bark": {
+    "type": "strip_peel",
+    "displace_mm": 60
+  },
+  "_src": {
+    "height_m": "M:自生50(-65)m(conifers.org)の範囲内",
+    "dbh_cm": "M:最大300cm(conifers.org)の範囲内",
+    "crown_width_m": "E:老齢木、枝下が高い(自然落枝: ICRAF)",
+    "crown.base_ratio": "E:自然落枝で幹が長く裸になる(ICRAF)",
+    "growth": "E",
+    "levels": "E",
+    "profile": "E:ほぼ円筒で根元が張り出す老齢木の形"
+  },
+  "trunk": {
+    "trunk_profile_mode": "CUSTOM",
+    "trunk_wobble": 0.08,
+    "trunk_lean_deg": 1.0,
+    "root_flare_height": 0.035,
+    "root_flare_scale": 1.25,
+    "root_count": 8,
+    "burl_density": 0.6,
+    "trunk_irregularity": 0.5,
+    "branch_irregularity": 0.3
+  },
+  "damage": {
+    "age_factor": 1.5,
+    "dead_branch_ratio": 0.12,
+    "broken_branch_ratio": 0.1,
+    "broken_hang_ratio": 0.35
+  },
+  "profile": [
+    [
+      0.0,
+      300
+    ],
+    [
+      0.012,
+      272
+    ],
+    [
+      0.03,
+      258
+    ],
+    [
+      0.12,
+      244
+    ],
+    [
+      0.4,
+      214
+    ],
+    [
+      0.7,
+      150
+    ],
+    [
+      0.9,
+      70
+    ],
+    [
+      1.0,
+      8
+    ]
+  ]
+}

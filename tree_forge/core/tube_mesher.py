@@ -246,7 +246,9 @@ def build_mesh(p, sk: Skeleton, st) -> MeshData:
     for lv in range(4):
         axs = [a for a in sk.axes if min(a.level, 3) == lv]
         if axs:
-            groups.append(_group(p, axs, max(3, qual["ring"][lv]), dist, dmax, rng, h_root))
+            r_max = max(a.radius[0] for a in axs) * (p.root_flare_scale if lv == 0 else 1.0)
+            V = max(3, allometry.ring_verts(p.quality, lv, r_max))
+            groups.append(_group(p, axs, V, dist, dmax, rng, h_root))
 
     cos, fv, fs, uvs, parts, brks = [], [], [], [], [], []
     pas: dict[str, list] = {}

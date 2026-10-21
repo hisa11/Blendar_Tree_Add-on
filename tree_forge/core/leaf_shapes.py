@@ -131,6 +131,21 @@ def needle_sprig(needle_len: float, n_needles: int = 24):
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
+def needle_spray(needle_len: float, n: int):
+    """スギの枝葉: 針をらせん状に付けた小枝 n 本が先へ扇状に広がり、先が少し垂れる（遠景で「塊」に見える）。"""
+    rng = np.random.default_rng(5)
+    base = needle_sprig(needle_len)
+    parts = []
+    for i in range(n):
+        f = (i - (n - 1) / 2.0) / max((n - 1) / 2.0, 1.0)                  # -1 〜 1
+        yaw = f * math.radians(55.0)
+        pitch = math.radians(-10.0 - 12.0 * abs(f) + rng.uniform(-4, 4))
+        scale = 1.0 - 0.22 * abs(f) + rng.uniform(-0.05, 0.05)
+        off = np.array([0.0, 0.2 * needle_len * abs(f), 0.0])
+        parts.append((_xform(base[0], yaw, pitch, scale, off), base[1], base[2]))
+    return _merge(parts)
+
+
 def flower(radius: float):
     """5弁花。中心が原点、+Z が表。"""
     verts = [(0.0, 0.0, 0.0)]
@@ -203,7 +218,7 @@ def leaf_source(p):
     if t == "NEEDLE_FASCICLE":
         return fascicle_tuft(L, p.fascicle_count, n) if n > 1 else needle_fascicle(L, p.fascicle_count)
     if t == "NEEDLE_SPIRAL":
-        return needle_sprig(L)
+        return needle_spray(L, n) if n > 1 else needle_sprig(L)
     raise ValueError(t)
 
 
