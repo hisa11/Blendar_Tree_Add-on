@@ -157,22 +157,52 @@ def sugi_bark():
     set_in(bump, "Distance", 0.06)
     m.link(hmix.outputs["Value"], bump.inputs["Height"])
     m.link(bump.outputs["Normal"], bark.inputs["Normal"])
-    # 根元の苔（高さ 0〜3.5 m、ノイズでまだらに。幹の北側＝-Y 側に強く）
+    # 根元の苔: 高さの減衰 × まだらなノイズ × 縦溝に溜まる × 木ごとのランダム（量と高さがばらつく）
+    rnd = m.n("ShaderNodeObjectInfo", y=-600).outputs["Random"]
     sep = m.n("ShaderNodeSeparateXYZ", y=-550)
     m.link(obj, sep.inputs["Vector"])
-    height = smooth_range(m, sep.outputs["Z"], 0.4, 4.0, y=-550)
-    inv = m.n("ShaderNodeMath", operation="SUBTRACT", y=-550)
+    reach = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=-600)          # 苔の届く高さ 1.6〜4.4 m
+    m.link(rnd, reach.inputs[0])
+    set_in(reach, 1, 2.8)
+    set_in(reach, 2, 1.6)
+    hdiv = m.n("ShaderNodeMath", operation="DIVIDE", y=-600)
+    m.link(sep.outputs["Z"], hdiv.inputs[0])
+    m.link(reach.outputs["Value"], hdiv.inputs[1])
+    fall = smooth_range(m, hdiv.outputs["Value"], 0.15, 1.0, y=-600)         # 0(地面)→1(上)
+    inv = m.n("ShaderNodeMath", operation="SUBTRACT", y=-600)
     set_in(inv, 0, 1.0)
-    m.link(height, inv.inputs[1])
-    mn = noise(m, 0.9, 8.0, 0.6, obj, y=-700)
-    moss_mask_raw = m.n("ShaderNodeMath", operation="MULTIPLY", y=-650)
-    m.link(inv.outputs["Value"], moss_mask_raw.inputs[0])
-    shift = m.n("ShaderNodeMath", operation="ADD", y=-700)
-    m.link(mn.outputs["Fac"], shift.inputs[0])
-    set_in(shift, 1, 0.25)
-    m.link(shift.outputs["Value"], moss_mask_raw.inputs[1])
-    moss_mask = smooth_range(m, moss_mask_raw.outputs["Value"], 0.38, 0.62, y=-700)
-    moss = m.principled((0.045, 0.10, 0.02), 1.0, y=-250, x=500)
+    m.link(fall, inv.inputs[1])
+    patch = noise(m, 1.4, 7.0, 0.6, obj, y=-750)
+    fine_m = noise(m, 11.0, 5.0, 0.55, obj, y=-900)
+    ingroove = m.n("ShaderNodeMath", operation="SUBTRACT", y=-800)           # 溝（groove=0 の所）ほど 1
+    set_in(ingroove, 0, 1.0)
+    m.link(groove.outputs["Color"], ingroove.inputs[1])                      # Color は RGB。Math へは明度として入る
+    w1 = m.n("ShaderNodeMath", operation="MULTIPLY", y=-750)
+    m.link(patch.outputs["Fac"], w1.inputs[0])
+    set_in(w1, 1, 0.55)
+    w2 = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=-850)
+    m.link(fine_m.outputs["Fac"], w2.inputs[0])
+    set_in(w2, 1, 0.25)
+    m.link(w1.outputs["Value"], w2.inputs[2])
+    w3 = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=-900)
+    m.link(ingroove.outputs["Value"], w3.inputs[0])
+    set_in(w3, 1, 0.20)
+    m.link(w2.outputs["Value"], w3.inputs[2])
+    amt = m.n("ShaderNodeMath", operation="MULTIPLY_ADD", y=-950)            # 木ごとの量 0.55〜1.2
+    m.link(rnd, amt.inputs[0])
+    set_in(amt, 1, 0.65)
+    set_in(amt, 2, 0.55)
+    raw = m.n("ShaderNodeMath", operation="MULTIPLY", y=-950)
+    m.link(inv.outputs["Value"], raw.inputs[0])
+    m.link(w3.outputs["Value"], raw.inputs[1])
+    scaled = m.n("ShaderNodeMath", operation="MULTIPLY", y=-1000)
+    m.link(raw.outputs["Value"], scaled.inputs[0])
+    m.link(amt.outputs["Value"], scaled.inputs[1])
+    moss_mask = smooth_range(m, scaled.outputs["Value"], 0.30, 0.46, y=-1000)
+    mcol = ramp(m, [(0.0, (0.030, 0.060, 0.010)), (0.5, (0.050, 0.095, 0.018)), (1.0, (0.085, 0.100, 0.030))],
+                fine_m.outputs["Fac"], y=-300)
+    moss = m.principled(rough=1.0, y=-250, x=500)
+    m.link(mcol.outputs["Color"], moss.inputs["Base Color"])
     m.link(bump.outputs["Normal"], moss.inputs["Normal"])
     mix = m.mix_shader(moss_mask, bark, moss, y=0)
     m.link(mix.outputs["Shader"], m.out.inputs["Surface"])
@@ -423,9 +453,9 @@ def make_tree(props, preset_io, sc, species, name, loc, yaw, bark, **ov):
     return o
 
 
-def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg):
+def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg, n_forest=0):
     bark = sugi_bark()
-    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (7.4, 0.0, 0.0), 0.0, bark,
+    hero = make_tree(props, preset_io, sc, "sugi_giant", "Cedar_Hero", (6.6, 0.0, 0.0), 0.0, bark,
                      quality=hero_quality, seed=hero_seed)
     rng = np.random.default_rng(11)
     sides = [-1, 1]
@@ -435,7 +465,7 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg):
         for s in sides:
             if s > 0 and abs(y) < 9.0:        # 主役の周り
                 continue
-            x = s * rng.uniform(6.8, 10.5)
+            x = s * rng.uniform(8.0, 12.5)
             y_ = float(y + rng.uniform(-3, 3))
             H = float(rng.uniform(33, 47))
             near = abs(y_) < 34
@@ -446,6 +476,21 @@ def build_trees(props, preset_io, sc, hero_seed, hero_quality, n_bg):
                       crown_base_ratio=float(rng.uniform(0.38, 0.5)), age_factor=float(rng.uniform(0.9, 1.3)),
                       leaf_scale=5.0, leaf_cluster=4, leaves_per_m=60.0)
             k += 1
+    # 遠景の森: 参道の両側とその奥。低品質＋葉の数を絞って軽くする
+    rng = np.random.default_rng(23)
+    j = 0
+    while j < n_forest:
+        s = 1 if rng.random() < 0.5 else -1
+        x = s * float(rng.uniform(15.0, 70.0))
+        y = float(rng.uniform(-28.0, 150.0))            # カメラ(y=-44)の近くには置かない
+        if abs(x) < 17:
+            continue
+        make_tree(props, preset_io, sc, "sugi", f"Forest_{j:02d}", (x, y, 0.0), float(rng.uniform(0, 6.28)), bark,
+                  quality="PREVIEW", seed=int(500 + j), height_m=float(rng.uniform(28, 48)),
+                  dbh_cm=float(rng.uniform(55, 100)), crown_width_m=float(rng.uniform(6.0, 9.5)),
+                  crown_base_ratio=float(rng.uniform(0.35, 0.5)), leaf_scale=5.5, leaf_cluster=4, leaves_per_m=60.0,
+                  leaf_max_instances=3500)
+        j += 1
     return hero
 
 
@@ -502,7 +547,7 @@ def build_world_and_light(sc):
     sky.sun_elevation, sky.sun_rotation = elev, az
     if hasattr(sky, "sun_disc"):
         sky.sun_disc = False
-    bg.inputs["Strength"].default_value = 0.55
+    bg.inputs["Strength"].default_value = 0.42
     nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
     nt.links.new(bg.outputs["Background"], out.inputs["Surface"])
     sun = bpy.data.lights.new("Sun", "SUN")
@@ -520,8 +565,8 @@ def build_camera(sc, view, hero_height):
     sc.collection.objects.link(co)
     sc.camera = co
     if view == "wide":
-        cam.lens = 28
-        loc, tgt = Vector((-1.5, -54.0, 1.7)), Vector((4.6, 0.0, hero_height * 0.40))
+        cam.lens = 24
+        loc, tgt = Vector((-3.2, -43.0, 1.5)), Vector((5.4, 0.0, hero_height * 0.42))
         res = (1100, 1600)
     elif view == "crown":
         cam.lens = 50
@@ -556,11 +601,11 @@ def setup_render(sc, res, scale, samples, denoise=True):
         except (TypeError, AttributeError):
             cy.use_denoising = False
     looks = [i.identifier for i in sc.view_settings.bl_rna.properties["look"].enum_items]
-    for cand in ("AgX - Medium High Contrast", "Medium High Contrast"):
+    for cand in ("AgX - High Contrast", "High Contrast", "AgX - Medium High Contrast", "Medium High Contrast"):
         if cand in looks:
             sc.view_settings.look = cand
             break
-    sc.view_settings.exposure = -0.3
+    sc.view_settings.exposure = -0.2
 
 
 def addon_enable():
@@ -575,8 +620,9 @@ def main(argv):
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--samples", type=int, default=96)
     ap.add_argument("--scale", type=float, default=1.0)
-    ap.add_argument("--fog", type=float, default=0.0007)
+    ap.add_argument("--fog", type=float, default=0.0004)
     ap.add_argument("--bg-trees", type=int, default=16)
+    ap.add_argument("--forest", type=int, default=36, help="遠景の森の本数")
     ap.add_argument("--hero-quality", default="HERO", choices=("PREVIEW", "MEDIUM", "HERO"))
     ap.add_argument("--save-blend", default="")
     ap.add_argument("--no-render", action="store_true")
@@ -595,7 +641,7 @@ def main(argv):
     build_torii(env)
     build_person(env, (-1.6, 11.0, 0.0), 0.4)
     build_person(env, (4.6, -6.6, 0.0), 2.6)
-    hero = build_trees(props, preset_io, sc, args.seed, args.hero_quality, args.bg_trees)
+    hero = build_trees(props, preset_io, sc, args.seed, args.hero_quality, args.bg_trees, args.forest)
     hero_h = props.read(hero.tree_forge).height_m
     build_world_and_light(sc)
     if args.fog > 0:
