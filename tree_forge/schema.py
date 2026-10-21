@@ -125,6 +125,10 @@ def _build() -> list[Param]:
         P("gravitropism", "float", 0.25, -1.0, 1.0, "", "重力屈性", "正で枝先が上向き", "general"),
         P("phototropism", "float", 0.2, 0.0, 1.0, "", "光屈性", "樹冠の外側へ向かう傾き", "general"),
         P("min_radius_mm", "float", 1.0, 0.2, 10.0, "mm", "最小半径", "枝先の半径の下限", "general"),
+        P("ref_height_m", "float", 0.0, 0.0, 200.0, "m", "基準の樹高",
+          "枝・葉の密度の基準になる樹高。0 以外のとき、樹高がこれと違うと、枝の本数（l1〜l3_density）を樹高比の逆数で、"
+          "葉の密度（leaves_per_m）を樹高比で補正する。サイズを変えても、枝葉の見た目の密度が変わらない（相似形になる）。"
+          "プリセットには既定の樹高が入る。0 で補正なし", "general"),
         # --- 幹 ---
         P("trunk_profile_mode", "enum", "AUTO", label="幹の太さ", group="trunk", simple=True,
           desc="AUTO: 胸高直径とテーパーから自動 / CUSTOM: 高さごとの直径を指定",
@@ -191,6 +195,10 @@ def _build() -> list[Param]:
         P("leaf_color", "color", (0.10, 0.28, 0.05), label="葉の色", desc="同梱の簡易マテリアルの葉の色。自分の材質を割り当てた場合は、その材質の色になる", group="leaf"),
         P("autumn_color", "color", (0.75, 0.40, 0.05), label="紅葉の色", desc="同梱の簡易マテリアルの紅葉の色。季節 0.62〜0.82 で緑からこの色へ変わる（0.85 で完全に紅葉）", group="leaf"),
         P("flower_color", "color", (0.96, 0.72, 0.80), label="花の色", desc="同梱の簡易マテリアルの花の色", group="leaf"),
+        P("bark_color", "color", (0.22, 0.15, 0.10), label="幹の色", group="leaf",
+          desc="同梱の簡易マテリアルの幹（根張りも）の基調色。自分の材質を割り当てた場合は、その材質の色になる"),
+        P("branch_color", "color", (0.20, 0.14, 0.09), label="枝の色", group="leaf",
+          desc="同梱の簡易マテリアルの枝・小枝の基調色（小枝は少し暗くなる）。自分の材質を割り当てた場合は、その材質の色になる"),
         P("bark_type", "enum", "fissured", label="樹皮タイプ（記録のみ）", group="leaf", update_regen=False,
           desc="樹皮の種類のメモ。現在は見た目に反映されない（材質は「マテリアル」パネルで選ぶ）",
           items=tuple((b, b) for b in BARK_TYPES)),

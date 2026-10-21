@@ -70,7 +70,17 @@
   },
   "bark": {
     "type": "strip_peel",
-    "displace_mm": 60
+    "displace_mm": 60,
+    "color": [
+      0.24,
+      0.13,
+      0.08
+    ],
+    "branch_color": [
+      0.22,
+      0.13,
+      0.08
+    ]
   },
   "_src": {
     "height_m": "M:自生50(-65)m(conifers.org)の範囲内",

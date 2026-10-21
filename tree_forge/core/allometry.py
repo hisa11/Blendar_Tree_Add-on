@@ -145,6 +145,12 @@ def ring_verts(quality: str, level: int, r_max: float = 0.0) -> int:
     return max(base, min(_RING_CAP[quality], v))
 
 
+def size_ratio(p) -> float:
+    """基準の樹高（ref_height_m）に対する今の樹高の比。枝の本数は 1/これ、葉の密度はこれ倍して、サイズを変えても密度感を保つ。"""
+    ref = getattr(p, "ref_height_m", 0.0)
+    return min(5.0, max(0.2, p.height_m / ref)) if ref > 0.0 else 1.0
+
+
 def quality_table(quality: str) -> dict:
     return _QUALITY[quality]
 

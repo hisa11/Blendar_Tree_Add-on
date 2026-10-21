@@ -23,7 +23,7 @@ _SECTION_KEYS = {
                "start": "leaf_start", "scatter": "leaf_scatter", "max_instances": "leaf_max_instances", "fascicle": "fascicle_count", "geom": "leaf_geom",
                "scale_var": "leaf_scale_var", "flower_density": "flower_density", "evergreen": "evergreen",
                "color": "leaf_color", "autumn_color": "autumn_color", "flower_color": "flower_color"},
-    "bark": {"type": "bark_type", "displace_mm": "bark_ridge_mm"},
+    "bark": {"type": "bark_type", "displace_mm": "bark_ridge_mm", "color": "bark_color", "branch_color": "branch_color"},
 }
 _DIRECT_SECTIONS = ("growth", "trunk", "damage", "material")      # キーは schema の名前そのまま
 
@@ -57,6 +57,8 @@ def overrides_from_dict(d: dict) -> dict:
         out["profile"] = d["profile"]
     if d.get("id") and "species" not in out:
         out["species"] = d["id"] if d["id"] in schema.SPECIES_IDS else "custom"
+    if "params" not in d and "height_m" in out:        # 同梱プリセットの樹高が、枝葉の密度の基準
+        out.setdefault("ref_height_m", out["height_m"])
     return out
 
 

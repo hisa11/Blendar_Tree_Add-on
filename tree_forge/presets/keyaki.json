@@ -63,7 +63,17 @@
   },
   "bark": {
     "type": "flaking",
-    "displace_mm": 8
+    "displace_mm": 8,
+    "color": [
+      0.3,
+      0.22,
+      0.16
+    ],
+    "branch_color": [
+      0.24,
+      0.18,
+      0.13
+    ]
   },
   "_src": {
     "height_m": "M:MBG 15-24m",

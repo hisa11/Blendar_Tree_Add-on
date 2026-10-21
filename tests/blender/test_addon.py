@@ -72,6 +72,17 @@ def _():
     assert eval_instances(lo) == int(np.sum([v.value for v in lo.data.attributes["is_leaf"].data]))
 
 
+@check("簡易マテリアルの幹の色が樹種ごとに違う（シラカバは白、クロマツは暗い）")
+def _():
+    def trunk_color(species):
+        obj = new_tree(species)
+        ramp = next(n for n in obj.data.materials[0].node_tree.nodes if n.bl_idname == "ShaderNodeValToRGB")
+        return np.array(ramp.color_ramp.elements[1].color[:3])
+    white, dark = trunk_color("shirakaba"), trunk_color("kuromatsu")
+    assert np.allclose(white, schema.make_params(**preset_io.builtin_overrides("shirakaba")).bark_color, atol=1e-4)
+    assert white.mean() > 0.6 and dark.mean() < 0.15, (white, dark)
+
+
 @check("葉の点群属性（回転は四元数・単位長）")
 def _():
     obj = new_tree(season=0.5)
@@ -322,8 +333,10 @@ def _():
     b = new_tree(season=0.5, leaf_cluster=5)
     n5 = len(b.tree_forge.leaf_src.data.polygons)
     assert n5 >= 2.5 * n1
-    sc = np.zeros(len(b.tree_forge.leaves_object.data.vertices) * 3, np.float32)
-    b.tree_forge.leaves_object.data.attributes["leaf_scale"].data.foreach_get("vector", sc)
+    # 点の拡大率は、上限（プレビューは 2 万）に達すると大きくなる。上限に達しない少ない葉で、leaf_scale どおりか見る
+    c = new_tree(season=0.5, leaf_cluster=5, foliage_amount=0.05)
+    sc = np.zeros(len(c.tree_forge.leaves_object.data.vertices) * 3, np.float32)
+    c.tree_forge.leaves_object.data.attributes["leaf_scale"].data.foreach_get("vector", sc)
     assert abs(sc.reshape(-1, 3)[:, 0].mean() - 1.0) < 0.2
 
 

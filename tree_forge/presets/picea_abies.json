@@ -64,7 +64,17 @@
   },
   "bark": {
     "type": "flaking",
-    "displace_mm": 10
+    "displace_mm": 10,
+    "color": [
+      0.27,
+      0.17,
+      0.12
+    ],
+    "branch_color": [
+      0.22,
+      0.15,
+      0.1
+    ]
   },
   "_src": {
     "height_m": "M:conifers.org 40-50m",

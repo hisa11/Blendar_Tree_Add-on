@@ -47,7 +47,7 @@
     "type": "BROAD",
     "length_cm": 7,
     "width_ratio": 1.0,
-    "per_m": 55,
+    "per_m": 90,
     "cluster": 4,
     "geom": "CUTOUT_MESH",
     "color": [
@@ -63,7 +63,17 @@
   },
   "bark": {
     "type": "smooth_lenticel",
-    "displace_mm": 2
+    "displace_mm": 2,
+    "color": [
+      0.24,
+      0.2,
+      0.17
+    ],
+    "branch_color": [
+      0.22,
+      0.17,
+      0.13
+    ]
   },
   "_src": {
     "height_m": "M:MBG 3-7.6m",

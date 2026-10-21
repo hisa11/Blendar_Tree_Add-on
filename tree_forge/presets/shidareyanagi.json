@@ -47,7 +47,7 @@
     "type": "BROAD",
     "length_cm": 11,
     "width_ratio": 0.12,
-    "per_m": 40,
+    "per_m": 75,
     "cluster": 6,
     "geom": "CUTOUT_MESH",
     "color": [
@@ -63,7 +63,17 @@
   },
   "bark": {
     "type": "fissured",
-    "displace_mm": 12
+    "displace_mm": 12,
+    "color": [
+      0.18,
+      0.14,
+      0.1
+    ],
+    "branch_color": [
+      0.16,
+      0.13,
+      0.09
+    ]
   },
   "_src": {
     "height_m": "M:UF/IFAS 9-15m",

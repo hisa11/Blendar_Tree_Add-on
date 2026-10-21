@@ -49,7 +49,7 @@
     "type": "NEEDLE_FASCICLE",
     "length_cm": 10,
     "fascicle": 2,
-    "per_m": 12,
+    "per_m": 30,
     "cluster": 10,
     "scale": 3.0,
     "geom": "CUTOUT_MESH",
@@ -67,7 +67,17 @@
   },
   "bark": {
     "type": "scaly_plates",
-    "displace_mm": 18
+    "displace_mm": 18,
+    "color": [
+      0.12,
+      0.1,
+      0.09
+    ],
+    "branch_color": [
+      0.15,
+      0.11,
+      0.08
+    ]
   },
   "_src": {
     "height_m": "M:園芸6-18m(MBG)/最大40m",

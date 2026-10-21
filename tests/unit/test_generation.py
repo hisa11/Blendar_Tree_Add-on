@@ -537,6 +537,20 @@ def test_stem_top_leaves_not_on_the_bare_lower_trunk_of_split_trees():
         assert not np.any(low_leaf & (d < a.radius.max() * 1.05 + 0.05)), (zs.max(), int(np.sum(low_leaf & (d < 1.0))))
 
 
+@pytest.mark.parametrize("sid", ["iroha_momiji", "someiyoshino", "shidareyanagi"])
+def test_no_leaves_on_the_fork_collar_of_a_split_trunk(sid):
+    """幹が低い所で分かれる木（モミジ・ソメイヨシノ・ヤナギ）で、分岐部の幹の肌に葉が直接付いていた（上端は頂部ではない）。"""
+    t = gen(sid, quality="MEDIUM", seed=2)
+    sk = t.skeleton
+    trunk = next(a for a in sk.axes if a.level == 0 and a.parent < 0)
+    assert any(a.level == 0 and a.parent == trunk.id for a in sk.axes), "幹が分かれる設定のはず"
+    lp = t.leaves.pos[t.leaves.is_leaf]
+    top = trunk.pos[int(0.8 * trunk.n):]                                  # 分岐部の手前（幹の上端 2 割）
+    r = float(trunk.radius[int(0.8 * trunk.n):].max())
+    d = np.min(np.linalg.norm(lp[:, None, :] - top[None, :, :], axis=2), axis=1)
+    assert not np.any(d < 1.3 * r), int(np.sum(d < 1.3 * r))
+
+
 def _leaf_offset_from_branches(t, n=1500):
     """葉（房）の位置から、いちばん近い枝の節までの距離の平均 [m]。散らばりが大きいほど大きい。"""
     nodes = np.concatenate([a.pos for a in t.skeleton.axes if not a.removed and a.level >= 1])
@@ -727,3 +741,37 @@ def test_virtual_twigs_respect_the_leaf_cap_and_time_budget():
             dt = time.time() - t0
             assert t.leaves.n <= allometry.quality_table(q)["leaf_cap"], (sid, q)
             assert dt <= (1.0 if q == "PREVIEW" else 4.0), (sid, q, dt)
+
+
+# --- 樹高を変えても枝葉の見た目の密度が変わらない（ref_height_m）-----------------------------
+def _leaf_cover(t, p) -> float:
+    """葉のインスタンスの面積の合計 ÷ 樹冠の投影面積（葉面積指数に相当）。"""
+    from tree_forge.core import leaf_shapes
+    v, tris, _ = leaf_shapes.leaf_source(p)
+    one = 0.5 * np.linalg.norm(np.cross(v[tris[:, 1]] - v[tris[:, 0]], v[tris[:, 2]] - v[tris[:, 0]]), axis=1).sum()
+    m = t.leaves.is_leaf
+    return float((t.leaves.scale[m, 0] ** 2).sum()) * one / (np.pi * (p.crown_width_m / 2) ** 2)
+
+
+@pytest.mark.parametrize("sid", ["hinoki", "shirakaba", "iroha_momiji"])
+def test_leaf_cover_does_not_depend_on_the_tree_size(sid):
+    """枝の本数は樹高に比例して増え、葉の密度は一定のままだと、大きい木ほど葉が過密（×1.4 で 4 倍）、小さい木は疎になる。
+    基準の樹高に対する比で補正し、サイズを変えても葉の被覆を保つ。"""
+    base = species_params(sid)
+    covers = []
+    for k in (0.7, 1.0, 1.4):
+        p = species_params(sid, quality="HERO", height_m=base.height_m * k, crown_width_m=base.crown_width_m * k,
+                           dbh_cm=base.dbh_cm * k, seed=4)
+        covers.append(_leaf_cover(pipeline.generate(p), p))
+    off = [species_params(sid, quality="HERO", height_m=base.height_m * k, crown_width_m=base.crown_width_m * k,
+                          dbh_cm=base.dbh_cm * k, seed=4, ref_height_m=0.0) for k in (0.7, 1.0, 1.4)]
+    c_off = [_leaf_cover(pipeline.generate(p), p) for p in off]
+    spread_on, spread_off = max(covers) / min(covers), max(c_off) / min(c_off)
+    assert spread_off > 2.5, c_off                                            # 補正なしだと、大きさで被覆が大きく変わる
+    assert spread_on < 0.6 * spread_off and spread_on < 2.2, (covers, c_off)
+
+
+def test_reference_height_is_a_noop_at_the_reference_size():
+    a = gen("shirakaba", quality="MEDIUM", seed=2)
+    b = gen("shirakaba", quality="MEDIUM", seed=2, ref_height_m=0.0)
+    assert mesh_hash(a) == mesh_hash(b) and np.array_equal(a.leaves.pos, b.leaves.pos)

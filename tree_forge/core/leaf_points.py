@@ -158,7 +158,7 @@ def _hero_twigs(p, sk: Skeleton, l2: list) -> tuple[float, float]:
     room = hq["tri_cap"] * 0.97 - fixed
     if room >= c2.sum():                                                   # L2 は全部入る
         c3 = (int(allometry.n_segments(np.array([twig_len]), 3, "HERO")[0]) * 2 + 1) * ring[3]
-        expected = p.l3_density * 0.85 * lens.sum() / per
+        expected = p.l3_density / allometry.size_ratio(p) * 0.85 * lens.sum() / per
         return min(expected, hq["l3_cap"], (room - c2.sum()) / c3), twig_len
     return lens.sum() * max(room, 0.0) / c2.sum() / twig_len, twig_len
 
@@ -253,7 +253,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 葉 ---
     if leaf_frac > 0.01 and p.foliage_amount > 0.0:
         theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
-        per_m = p.leaves_per_m * p.foliage_amount
+        per_m = p.leaves_per_m * p.foliage_amount * allometry.size_ratio(p)
         start = p.leaf_start if p.leaf_start >= 0.0 else _AUTO_START.get(p.leaf_type, 0.2)
         done = {a.id for a in axes}
         pts, tg = _place(axes, per_m, start, rng, leaf_frac, theta, 0.25)
@@ -270,8 +270,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける。
         # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
-        s_pts, s_tg = _place([a for a in live if a.level == 0 and not a.dead], per_m * 1.0, 0.82, rng, leaf_frac, theta, 0.25,
-                             surface=True)
+        forked = {a.parent for a in live if a.level == 0 and a.parent >= 0}       # 先で幹が分かれる幹の上端は、分岐部（頂部ではない）
+        s_pts, s_tg = _place([a for a in live if a.level == 0 and not a.dead and a.id not in forked], per_m * 1.0, 0.82, rng,
+                             leaf_frac, theta, 0.25, surface=True)
         above = s_pts[:, 2] >= p.crown_base_ratio * p.height_m          # 幹分かれの下の幹（樹冠より下）には付けない
         extra.append((s_pts[above], s_tg[above]))
         # 足りない細枝の葉は、末端の枝の葉（pts）だけを基準に足す。「葉を付ける枝」で足す内側の枝の葉は、その上にさらに加わる
@@ -315,7 +316,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 花（L2 以降の細い軸に）---
     if flower_frac > 0.01 and p.flower_density > 0.0:
         f_axes = [a for a in sk.axes if not a.removed and not a.dead and a.level >= 2]
-        pts, tg = _place(f_axes, p.leaves_per_m * 1.2 * p.flower_density, 0.15, rng, flower_frac, 0.8, 0.3)
+        pts, tg = _place(f_axes, p.leaves_per_m * 1.2 * p.flower_density * allometry.size_ratio(p), 0.15, rng, flower_frac, 0.8, 0.3)
         n = len(pts)
         if n > cap // 2:
             keep = np.sort(rng.choice(n, cap // 2, replace=False))

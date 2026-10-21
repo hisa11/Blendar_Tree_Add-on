@@ -45,9 +45,10 @@
   ],
   "leaves": {
     "type": "FAN",
-    "length_cm": 3.5,
-    "per_m": 50,
-    "cluster": 4,
+    "length_cm": 4.5,
+    "per_m": 100,
+    "cluster": 5,
+    "scatter": 0.8,
     "geom": "CUTOUT_MESH",
     "color": [
       0.14,
@@ -62,7 +63,17 @@
   },
   "bark": {
     "type": "fissured",
-    "displace_mm": 9
+    "displace_mm": 9,
+    "color": [
+      0.3,
+      0.26,
+      0.2
+    ],
+    "branch_color": [
+      0.24,
+      0.2,
+      0.15
+    ]
   },
   "_src": {
     "height_m": "M:MBG 15-24m",

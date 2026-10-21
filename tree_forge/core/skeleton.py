@@ -220,7 +220,7 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
 # --------------------------------------------------------------------------------------
 def _child_specs(p, parents: list[Axis], level: int, rng) -> dict | None:
     pre = f"l{level}_"
-    density = getattr(p, pre + "density")
+    density = getattr(p, pre + "density") / allometry.size_ratio(p)
     phyl = getattr(p, pre + "phyllotaxis")
     div = math.radians(getattr(p, pre + "divergence_deg"))
     wcount = getattr(p, pre + "whorl_count")

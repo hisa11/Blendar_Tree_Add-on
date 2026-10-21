@@ -75,6 +75,11 @@ def _bark(name, base, dark, scale):
     return mat
 
 
+def _shade(c, k):
+    """色を k 倍に暗く（明るく）する。"""
+    return tuple(min(1.0, v * k) for v in c)
+
+
 def _plain(name, color, rough=0.7):
     mat, nt, bsdf, _ = _new(name)
     bsdf.inputs["Base Color"].default_value = _rgba(color)
@@ -137,13 +142,16 @@ def leaf_material(name, color, card_mask=False, translucent=True):
 def default_material(part, ns=None, tree_name="", leaf_color=None):
     """同梱の簡易マテリアル。木ごとに色が変わる葉・花は木の名前つき。"""
     if part in ("trunk", "root_flare"):
-        return _bark("TF_Bark", (0.22, 0.15, 0.10), (0.09, 0.06, 0.04), 6.0)
+        col = tuple(ns.bark_color) if ns is not None else (0.22, 0.15, 0.10)
+        return _bark("TF_Bark", col, _shade(col, 0.4), 6.0)
     if part == "branch":
-        return _bark("TF_Branch", (0.20, 0.14, 0.09), (0.08, 0.055, 0.035), 9.0)
+        col = tuple(ns.branch_color) if ns is not None else (0.20, 0.14, 0.09)
+        return _bark("TF_Branch", col, _shade(col, 0.4), 9.0)
     if part == "twig":
-        return _bark("TF_Twig", (0.17, 0.12, 0.08), (0.07, 0.05, 0.03), 12.0)
+        col = _shade(tuple(ns.branch_color), 0.85) if ns is not None else (0.17, 0.12, 0.08)
+        return _bark("TF_Twig", col, _shade(col, 0.4), 12.0)
     if part == "broken":
-        return _plain("TF_BrokenWood", (0.62, 0.50, 0.32), 0.8)
+        return _plain("TF_BrokenWood", (0.50, 0.40, 0.27), 0.8)
     if part == "fruit":
         return _plain("TF_Fruit", (0.55, 0.05, 0.04), 0.4)
     if part == "flower":

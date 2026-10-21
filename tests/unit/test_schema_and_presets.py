@@ -88,3 +88,32 @@ def test_manifest():
     assert set(m["permissions"]) == {"files"}
     assert not m["permissions"]["files"].endswith(".")        # 末尾に句点を付けない
     assert not m["tagline"].endswith(".")
+
+
+@pytest.mark.parametrize("sid", schema.SPECIES_IDS)
+def test_builtin_presets_set_the_reference_height_and_bark_colours(sid):
+    """同梱プリセットの樹高が、枝葉の密度の基準（ref_height_m）。幹・枝の色も樹種ごとに持つ。"""
+    p = schema.make_params(**preset_io.builtin_overrides(sid))
+    assert p.ref_height_m == p.height_m > 0
+    d = preset_io.load_builtin(sid)
+    assert len(d["bark"]["color"]) == 3 and len(d["bark"]["branch_color"]) == 3
+    assert tuple(p.bark_color) == tuple(d["bark"]["color"])
+
+
+def test_birch_trunk_is_white_and_dark_barked_species_are_dark():
+    def lightness(sid):
+        return sum(schema.make_params(**preset_io.builtin_overrides(sid)).bark_color) / 3.0
+    assert lightness("shirakaba") > 0.6                                    # シラカバは白い幹
+    assert lightness("kuromatsu") < 0.15                                   # クロマツは灰黒色
+    assert all(lightness(s) < 0.45 for s in schema.SPECIES_IDS if s != "shirakaba")
+
+
+def test_user_preset_keeps_the_reference_height():
+    ov = preset_io.builtin_overrides("sugi")
+    ov["height_m"] = 20.0                                                  # 樹高を変えても基準は樹種の既定のまま
+    p = schema.make_params(**ov)
+    assert p.ref_height_m == 30.0
+    ns = type("NS", (), dict(vars(p)))()
+    d = preset_io.dump_user_preset(ns, "mine")
+    assert d["params"]["ref_height_m"] == 30.0
+    assert schema.make_params(**preset_io.overrides_from_dict(d)).ref_height_m == 30.0

@@ -70,7 +70,17 @@
   },
   "bark": {
     "type": "smooth_lenticel",
-    "displace_mm": 3
+    "displace_mm": 3,
+    "color": [
+      0.17,
+      0.13,
+      0.11
+    ],
+    "branch_color": [
+      0.15,
+      0.11,
+      0.09
+    ]
   },
   "_src": {
     "height_m": "M:MBG 9-12m",
