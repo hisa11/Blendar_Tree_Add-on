@@ -802,6 +802,24 @@ def test_no_leaf_lines_along_l2_when_there_is_no_l3(monkeypatch):
         assert t.leaves.is_leaf.sum() > 3000, sid                         # 葉は仮想細枝の房として置かれている
 
 
+def test_no_leaf_lines_along_l2_in_a_budget_limited_hero_tree(monkeypatch):
+    """高品質でも、大木（×1.4）は三角形の予算で L3 がほとんど消え、L2 に沿って葉が並んで長い棒になっていた。"""
+    calls = []
+    orig = leaf_points._place
+
+    def spy(axes, *a, **kw):
+        calls.append([x.level for x in axes])
+        return orig(axes, *a, **kw)
+
+    monkeypatch.setattr(leaf_points, "_place", spy)
+    t = gen("kusunoki", quality="HERO", seed=3, height_m=28.0, crown_width_m=35.0, dbh_cm=168.0)
+    n2 = sum(1 for a in t.skeleton.axes if a.level == 2 and not a.dead)
+    n3 = sum(1 for a in t.skeleton.axes if a.level == 3 and not a.dead)
+    assert n3 < 0.5 * n2, (n2, n3)                                            # この木は L3 がほとんど無い
+    assert not any(c and all(lv == 2 for lv in c) for c in calls), calls
+    assert t.leaves.is_leaf.sum() > 100_000
+
+
 def test_hanging_broken_branch_length_is_capped():
     """垂れ下がった折れ枝が 10 m 以上も糸のように地面まで届いていた。垂れ下がる部分は樹高の 2 割まで。"""
     for sid, q in (("keyaki", "MEDIUM"), ("quercus_robur", "MEDIUM")):

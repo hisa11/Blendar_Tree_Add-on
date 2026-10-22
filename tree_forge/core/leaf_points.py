@@ -130,6 +130,7 @@ def _sub_levels(sk: Skeleton, depth: int, exclude: set):
 
 VIRTUAL_TARGET = 0.8     # 高品質（HERO）が予算内で持てる L3 の本数の見積りに対する割合（HERO の実測は見積りの 0.8〜1.5 倍）
 VIRTUAL_DEADBAND = 0.9   # すでにある葉が目標のこの割合に届いていれば足さない
+VIRTUAL_SPREAD = 0.22     # 仮想細枝の葉を、軸のまわりに広げる半径（細枝の長さに対する割合）
 VIRTUAL_BOOST = 2.3      # 足す葉の上限は「上限枚数 × この倍率² × foliage_amount」。MAX_BOOST までの余地を、葉の量の調整用に残す
 
 
@@ -238,6 +239,25 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     z = np.array([0.0, 0.0, 1.0])
     pt = base[tw] + d[tw] * sa[:, None] - z * (sag * sa ** 2 / length[tw])[:, None]
     tg = normalize(d[tw] - z * (2.0 * sag * sa / length[tw])[:, None])
+    # 細枝の線上に並べると、枝の向きにそろった長い棒になる。本物の細枝は側枝を出して 3 次元の房になるので、軸のまわりへ広げる
+    q1, q2 = perp_basis(tg)
+    ph = rng.uniform(0.0, 2.0 * math.pi, len(tw))
+    rd = VIRTUAL_SPREAD * length[tw] * np.sqrt(rng.random(len(tw)))
+    pt = pt + (np.cos(ph)[:, None] * q1 + np.sin(ph)[:, None] * q2) * rd[:, None]
+    if l2_only:                                            # L2 が末端なら、その先端 1/4 にも広げた葉を置く（先端が裸の棒にならない）
+        kt = (per_m * leaf_frac * 0.25 * lens + rng.random(len(lens))).astype(int)
+        pa = np.repeat(np.arange(len(lens)), kt)
+        if len(pa):
+            key2 = offs[pa] + rng.uniform(0.75, 1.0, len(pa)) * lens[pa]
+            k2 = np.clip(np.searchsorted(G, key2, side="right") - 1, starts[pa], ends[pa] - 2)
+            f2 = ((key2 - G[k2]) / np.maximum(G[k2 + 1] - G[k2], 1e-9))[:, None]
+            tp = PC[k2] * (1 - f2) + PC[k2 + 1] * f2
+            tt = normalize(PC[k2 + 1] - PC[k2])
+            r1, r2 = perp_basis(tt)
+            ph2 = rng.uniform(0.0, 2.0 * math.pi, len(pa))
+            rd2 = 0.06 * lens[pa] * np.sqrt(rng.random(len(pa)))
+            tp = tp + (np.cos(ph2)[:, None] * r1 + np.sin(ph2)[:, None] * r2) * rd2[:, None]
+            pt, tg = np.concatenate([pt, tp]), np.concatenate([tg, tt])
     cx, cy = _center_fn(trunk)(pt[:, 2])                                   # 樹冠のエンベロープの外と地面の下は除く
     inside = (np.hypot(pt[:, 0] - cx, pt[:, 1] - cy) <= envelope.reach(p, pt[:, 2]) * 1.05) & (pt[:, 2] > 0.05)
     return pt[inside], tg[inside]
@@ -249,8 +269,13 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     leaf_frac, flower_frac, color_t = season_state(p.season, p.evergreen, flowering)
     cap = p.leaf_max_instances or allometry.quality_table(p.quality)["leaf_cap"]
     axes = _bearing_axes(sk)
-    l2_only = max(a.level for a in sk.axes if not a.removed) == 2 and any(a.level == 2 for a in axes)
-    if l2_only:                                            # 末端が L2 のとき、L2 に沿って並べず、仮想細枝の房にする
+    live_ax = [a for a in sk.axes if not a.removed]
+    n_l2 = sum(1 for a in live_ax if a.level == 2 and not a.dead)
+    n_l3 = sum(1 for a in live_ax if a.level == 3 and not a.dead)
+    # 末端が L2 のとき（プレビュー）や、L3 が L2 の半分も無いとき（予算で L3 が消えた大木）は、L2 に沿って葉を並べると
+    # 枝の向きにそろった長い棒になる。L2 には並べず、仮想細枝の房にする
+    l2_only = any(a.level == 2 for a in axes) and (max(a.level for a in live_ax) == 2 or n_l3 < 0.5 * n_l2)
+    if l2_only:
         axes = [a for a in axes if a.level != 2]
 
     parts_pos, parts_quat, parts_scale, parts_leaf, parts_var = [], [], [], [], []
@@ -287,11 +312,11 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             L = a.length()
             if L < 3.0 * tip:
                 continue
-            t_pts, t_tg = _place([a], per_m * 3.0, 1.0 - tip / L, rng, leaf_frac, theta, 0.25)
+            t_pts, t_tg = _place([a], per_m * 2.0, 1.0 - tip / L, rng, leaf_frac, theta, 0.25)
             if len(t_pts):
                 e1, e2 = perp_basis(t_tg)
                 phi = rng.uniform(0.0, 2.0 * math.pi, len(t_pts))
-                rad = 0.18 * tip * np.sqrt(rng.random(len(t_pts)))
+                rad = 0.35 * tip * np.sqrt(rng.random(len(t_pts)))
                 t_pts = t_pts + (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2) * rad[:, None]
                 extra.append((t_pts, t_tg))
         # 足りない細枝の葉は、末端の枝の葉（pts）だけを基準に足す。「葉を付ける枝」で足す内側の枝の葉は、その上にさらに加わる
