@@ -33,8 +33,15 @@ def _mark_dead(cm: dict, root: Axis) -> None:
         stack.extend(c for c in cm.get(a.id, []) if not c.removed)
 
 
-def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator) -> None:
-    """節 kb で折れ、先が下へ垂れ下がる。折れ口は繋がったまま。"""
+HANG_MAX_FRAC = 0.2      # 垂れ下がる部分の長さの上限（樹高比）。これより先は落ちて無くなる（糸のように地面まで届かない）
+
+
+def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator, max_len: float = float("inf")) -> None:
+    """節 kb で折れ、先が下へ垂れ下がる。折れ口は繋がったまま。垂れ下がる部分は max_len [m] まで。"""
+    cum = np.cumsum(np.linalg.norm(np.diff(ax.pos[kb:], axis=0), axis=1))
+    keep = max(2, int(np.searchsorted(cum, max_len, side="right")))
+    if kb + 1 + keep < ax.n:
+        sk.truncate(ax, kb + 1 + keep, cm)
     P = ax.pos.copy()
     n = len(P)
     d_break = normalize(P[kb + 1] - P[kb])
@@ -139,7 +146,7 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             kb = int(np.clip(round(b * (ax.n - 1)), 2, ax.n - 2))
             hang = ax.level <= 2 and rng.random() < p.broken_hang_ratio
             if hang:
-                _hang(sk, ax, kb, cm, rng)
+                _hang(sk, ax, kb, cm, rng, HANG_MAX_FRAC * p.height_m)
             else:
                 sk.truncate(ax, kb + 1, cm)
                 ax.broken = True

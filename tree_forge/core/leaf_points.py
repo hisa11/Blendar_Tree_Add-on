@@ -130,7 +130,7 @@ def _sub_levels(sk: Skeleton, depth: int, exclude: set):
 
 VIRTUAL_TARGET = 0.8     # 高品質（HERO）が予算内で持てる L3 の本数の見積りに対する割合（HERO の実測は見積りの 0.8〜1.5 倍）
 VIRTUAL_DEADBAND = 0.9   # すでにある葉が目標のこの割合に届いていれば足さない
-VIRTUAL_BOOST = 1.8      # 足す葉の上限は「上限枚数 × この倍率² × foliage_amount」。MAX_BOOST までの余地を、葉の量の調整用に残す
+VIRTUAL_BOOST = 2.3      # 足す葉の上限は「上限枚数 × この倍率² × foliage_amount」。MAX_BOOST までの余地を、葉の量の調整用に残す
 
 
 def _hero_twigs(p, sk: Skeleton, l2: list) -> tuple[float, float]:
@@ -158,22 +158,24 @@ def _hero_twigs(p, sk: Skeleton, l2: list) -> tuple[float, float]:
     room = hq["tri_cap"] * 0.97 - fixed
     if room >= c2.sum():                                                   # L2 は全部入る
         c3 = (int(allometry.n_segments(np.array([twig_len]), 3, "HERO")[0]) * 2 + 1) * ring[3]
-        expected = p.l3_density / allometry.size_ratio(p) * 0.85 * lens.sum() / per
+        expected = p.l3_density / allometry.size_ratio(p) * 0.85 * lens.sum()           # 節あたり per 本で、節の数は密度 / per なので、本数は per に依らない
         return min(expected, hq["l3_cap"], (room - c2.sum()) / c3), twig_len
     return lens.sum() * max(room, 0.0) / c2.sum() / twig_len, twig_len
 
 
 def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_frac: float, n_existing: int,
-                        max_points: int):
+                        max_points: int, l2_only: bool = False):
     """低い品質（L3 を間引いた・作らない）で、L3 の細枝があるはずの場所に葉の点だけを足す。
 
     枝は作らない。細い枝（太さ数 mm）は遠目には見えず、葉の量だけが品質で変わってしまうのを防ぐ。
     L2（予算で間引いたものを含む）の途中に、_child_specs と同じ分布（位置 u・角度・長さ）で仮想の細枝を立て、その上に葉の点を置く。
     すでにある葉の点（n_existing）を細枝何本ぶんかに換算して差し引き、足りない分だけ足す。
-    HERO は基準なので何も足さない。(位置, 接線) を返す。
+    l2_only は、L3 が 1 本も無く L2 が末端の枝のとき（プレビュー、予算で L3 が消えた大木）。L2 に沿って葉を並べると枝の向きにそろった
+    長い棒（芋虫状）になるので、L2 には葉を並べず、この仮想細枝だけで葉を置く（枝のまわりに広がる房になる）。
+    L3 がある HERO は基準なので何も足さない。(位置, 接線) を返す。
     """
     empty = (np.zeros((0, 3)), np.zeros((0, 3)))
-    if p.quality == "HERO":
+    if p.quality == "HERO" and not l2_only:
         return empty
     l2 = [a for a in sk.axes if not a.removed and a.level == 2 and not a.dead and a.n >= 2]
     l2 += [a for a in sk.ghosts if a.n >= 2]             # 予算で間引いた L2 にも、あったはずの細枝（の葉）を立てる
@@ -247,6 +249,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     leaf_frac, flower_frac, color_t = season_state(p.season, p.evergreen, flowering)
     cap = p.leaf_max_instances or allometry.quality_table(p.quality)["leaf_cap"]
     axes = _bearing_axes(sk)
+    l2_only = max(a.level for a in sk.axes if not a.removed) == 2 and any(a.level == 2 for a in axes)
+    if l2_only:                                            # 末端が L2 のとき、L2 に沿って並べず、仮想細枝の房にする
+        axes = [a for a in axes if a.level != 2]
 
     parts_pos, parts_quat, parts_scale, parts_leaf, parts_var = [], [], [], [], []
 
@@ -271,13 +276,27 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
         forked = {a.parent for a in live if a.level == 0 and a.parent >= 0}       # 先で幹が分かれる幹の上端は、分岐部（頂部ではない）
-        s_pts, s_tg = _place([a for a in live if a.level == 0 and not a.dead and a.id not in forked], per_m * 1.0, 0.82, rng,
-                             leaf_frac, theta, 0.25, surface=True)
+        tops = [a for a in live if a.level == 0 and not a.dead and a.id not in forked]
+        u_top = 0.93 if p.leaf_type == "NEEDLE_FASCICLE" else 0.82                  # マツの針の房は細い枝先だけ。幹の肌には先端のごく手前から
+        s_pts, s_tg = _place(tops, per_m * 1.0, u_top, rng, leaf_frac, theta, 0.25, surface=True)
         above = s_pts[:, 2] >= p.crown_base_ratio * p.height_m          # 幹分かれの下の幹（樹冠より下）には付けない
         extra.append((s_pts[above], s_tg[above]))
+        # 梢: 幹の先端の細い部分は、側枝が無いと葉のない棒として樹冠から突き出す。先端に葉の房を足して覆う
+        tip = float(np.clip(0.05 * p.height_m, 0.4, 1.5))
+        for a in tops:
+            L = a.length()
+            if L < 3.0 * tip:
+                continue
+            t_pts, t_tg = _place([a], per_m * 3.0, 1.0 - tip / L, rng, leaf_frac, theta, 0.25)
+            if len(t_pts):
+                e1, e2 = perp_basis(t_tg)
+                phi = rng.uniform(0.0, 2.0 * math.pi, len(t_pts))
+                rad = 0.18 * tip * np.sqrt(rng.random(len(t_pts)))
+                t_pts = t_pts + (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2) * rad[:, None]
+                extra.append((t_pts, t_tg))
         # 足りない細枝の葉は、末端の枝の葉（pts）だけを基準に足す。「葉を付ける枝」で足す内側の枝の葉は、その上にさらに加わる
         v_pts, v_tg = virtual_twig_points(p, sk, rng, per_m, start, leaf_frac, len(pts),
-                                          int(cap * VIRTUAL_BOOST ** 2 * p.foliage_amount))
+                                          int(cap * VIRTUAL_BOOST ** 2 * p.foliage_amount), l2_only)
         pts, tg = np.concatenate([pts, v_pts]), np.concatenate([tg, v_tg])
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])

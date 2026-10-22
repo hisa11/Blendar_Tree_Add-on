@@ -85,5 +85,8 @@
     "growth": "E",
     "levels": "E",
     "leaves.length_cm": "M:ICRAF 3-25mm"
+  },
+  "trunk": {
+    "trunk_wobble": 0.06
   }
 }

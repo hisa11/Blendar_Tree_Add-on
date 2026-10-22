@@ -10,7 +10,7 @@
   },
   "crown": {
     "shape": "weeping",
-    "base_ratio": 0.22
+    "base_ratio": 0.14
   },
   "growth": {
     "apical_dominance": 0.3,

@@ -50,6 +50,7 @@
     "per_m": 200,
     "scale": 2.4,
     "scatter": 0.5,
+    "reach": "ALL",
     "geom": "CUTOUT_MESH",
     "evergreen": true,
     "color": [
@@ -67,14 +68,14 @@
     "type": "strip_peel",
     "displace_mm": 12,
     "color": [
-      0.32,
-      0.17,
-      0.1
+      0.2,
+      0.1,
+      0.065
     ],
     "branch_color": [
-      0.26,
-      0.15,
-      0.09
+      0.18,
+      0.1,
+      0.07
     ]
   },
   "_src": {
@@ -84,5 +85,8 @@
     "growth": "E",
     "levels": "E",
     "leaves.length_cm": "E"
+  },
+  "trunk": {
+    "trunk_wobble": 0.08
   }
 }

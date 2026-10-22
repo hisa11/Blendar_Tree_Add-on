@@ -520,7 +520,10 @@ def test_generate_places_stem_top_leaves_on_the_surface(monkeypatch):
     monkeypatch.setattr(leaf_points, "_place", spy)
     gen("sugi", quality="PREVIEW")
     trunk = [c for c in calls if c[0] and all(a.level == 0 for a in c[0])]
-    assert len(trunk) == 1 and trunk[0][3] is True and 0.7 <= trunk[0][2] <= 0.9 and trunk[0][1] > 0
+    surf = [c for c in trunk if c[3] is True]
+    tip = [c for c in trunk if c[3] is False]
+    assert len(surf) == 1 and 0.7 <= surf[0][2] <= 0.9 and surf[0][1] > 0
+    assert len(tip) == 1 and tip[0][2] > 0.9 and tip[0][1] > surf[0][1]            # 梢の先端には、さらに密な房
 
 
 def test_stem_top_leaves_not_on_the_bare_lower_trunk_of_split_trees():
@@ -562,10 +565,12 @@ def _leaf_offset_from_branches(t, n=1500):
 
 def test_leaf_scatter_spreads_sprays_around_the_branch():
     """房が枝の軸の上にそろうと、枝先ごとの固まり（芋虫状）になる。散らばりを上げると、枝から離れた位置にも房が付く。"""
-    kw = dict(quality="PREVIEW", leaf_max_instances=40_000)
+    # 高品質は細い枝（L3）が実在して葉がそこに付くので、散らばりの効果だけを見られる（標準・プレビューは仮想細枝の房が混じる）
+    kw = dict(quality="HERO", leaf_max_instances=40_000)
     d0 = _leaf_offset_from_branches(gen("sugi", leaf_scatter=0.0, **kw))
     d1 = _leaf_offset_from_branches(gen("sugi", leaf_scatter=1.0, **kw))
     assert d1 > d0 + 0.03, (d0, d1)
+    kw = dict(quality="PREVIEW", leaf_max_instances=40_000)
     # 自動（-1）: 針葉(らせん)は 0.7、それ以外の葉は 0
     a = gen("sugi", leaf_scatter=-1.0, **kw)
     b = gen("sugi", leaf_scatter=0.7, **kw)
@@ -587,8 +592,8 @@ def test_trunk_stubs_below_crown_base():
     off = gen("sugi", trunk_stubs=False, trunk_stub_density=1.0, **kw)          # オフなら密度があっても付かない
     on = gen("sugi", trunk_stubs=True, trunk_stub_density=1.0, **kw)
     hb = 0.5 * 30.0
-    low_off = [a for a in off.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
-    low_on = [a for a in on.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
+    low_off = [a for a in off.skeleton.axes if a.level == 1 and a.pos[0][2] < hb - 0.05]
+    low_on = [a for a in on.skeleton.axes if a.level == 1 and a.pos[0][2] < hb - 0.05]
     assert not low_off and len(low_on) >= 8                       # 約 1 本/m × (15 − 1.2) m
     trunk = on.skeleton.axes[0]
     for a in low_on:
@@ -599,7 +604,7 @@ def test_trunk_stubs_below_crown_base():
         assert a.radius[0] > a.radius[-1] > 0.5 * a.radius[0]      # 折れ口は先細りしすぎない
     # 根張りの高さより上にだけ付く（根張りで幹の実半径が大きく、スタブが埋まるため）
     flared = gen("sugi", trunk_stubs=True, trunk_stub_density=2.0, root_flare_height=0.15, root_flare_scale=2.2, **kw)
-    stubs = [a for a in flared.skeleton.axes if a.level == 1 and a.pos[0][2] < hb]
+    stubs = [a for a in flared.skeleton.axes if a.level == 1 and a.pos[0][2] < hb - 0.05]
     assert stubs and min(a.pos[0][2] for a in stubs) >= 0.15 * 30.0 - 1e-6
     # 他の枝（骨格・半径・折れ）には触れない: スタブは最後に足されるだけ
     n0 = len(off.skeleton.axes)
@@ -775,3 +780,81 @@ def test_reference_height_is_a_noop_at_the_reference_size():
     a = gen("shirakaba", quality="MEDIUM", seed=2)
     b = gen("shirakaba", quality="MEDIUM", seed=2, ref_height_m=0.0)
     assert mesh_hash(a) == mesh_hash(b) and np.array_equal(a.leaves.pos, b.leaves.pos)
+
+
+# --- レビューで見つかった見た目の不具合の回帰テスト --------------------------------------------
+def test_no_leaf_lines_along_l2_when_there_is_no_l3(monkeypatch):
+    """L3 が無い（プレビュー）と、L2 に沿って葉を並べていたため、枝の向きにそろった長い棒（芋虫状）になっていた。
+    L2 には並べず、仮想細枝の房だけで葉を置く。"""
+    calls = []
+    orig = leaf_points._place
+
+    def spy(axes, *a, **kw):
+        calls.append([x.level for x in axes])
+        return orig(axes, *a, **kw)
+
+    monkeypatch.setattr(leaf_points, "_place", spy)
+    for sid in ("keyaki", "iroha_momiji", "shirakaba"):
+        calls.clear()
+        t = gen(sid, quality="PREVIEW", seed=2)
+        assert max(a.level for a in t.skeleton.axes) == 2
+        assert not any(c and all(lv == 2 for lv in c) for c in calls), (sid, calls)
+        assert t.leaves.is_leaf.sum() > 3000, sid                         # 葉は仮想細枝の房として置かれている
+
+
+def test_hanging_broken_branch_length_is_capped():
+    """垂れ下がった折れ枝が 10 m 以上も糸のように地面まで届いていた。垂れ下がる部分は樹高の 2 割まで。"""
+    for sid, q in (("keyaki", "MEDIUM"), ("quercus_robur", "MEDIUM")):
+        p = species_params(sid, quality=q, seed=5, broken_branch_ratio=0.4, broken_hang_ratio=1.0, age_factor=1.5)
+        t = pipeline.generate(p)
+        hung = [a for a in t.skeleton.axes if a.neck >= 0]
+        assert len(hung) > 5, (sid, len(hung))
+        for a in hung:
+            tail = np.linalg.norm(np.diff(a.pos[a.neck:], axis=0), axis=1).sum()
+            seg = np.linalg.norm(np.diff(a.pos[a.neck:], axis=0), axis=1).max()
+            assert tail <= damage.HANG_MAX_FRAC * p.height_m + seg + 1e-6, (sid, tail)
+
+
+def test_weeping_crown_has_a_dome_top_and_a_curtain_skirt():
+    p = species_params("shidareyanagi")
+    H, hb, half = p.height_m, p.crown_base_ratio * p.height_m, 0.5 * p.crown_width_m
+    z = np.array([0.5 * hb, hb, hb + 0.4 * (H - hb), H - 0.12 * (H - hb)])
+    r = envelope.reach(p, z)
+    assert r[0] > 0.55 * half and r[1] > 0.7 * half                          # 枝下より下へも暖簾状に垂れる
+    assert r[3] > 0.35 * half                                                # 頂部は丸いドーム（細いと幹の先が裸で突き出る）
+
+
+@pytest.mark.parametrize("sid,seed,limit", [("shidareyanagi", 1391, 0.06), ("shidareyanagi", 2028, 0.06), ("picea_abies", 3, 0.02),
+                                            ("keyaki", 3, 0.06)])
+def test_no_bare_wand_above_the_crown(sid, seed, limit):
+    """梢の先端が葉のない棒として樹冠から突き出していた（先端に葉の房を足す。足さないとヤナギ・トウヒは 8〜10% の高さが裸）。"""
+    t = gen(sid, quality="MEDIUM", seed=seed)
+    top = np.percentile(t.leaves.pos[t.leaves.is_leaf][:, 2], 99.9)
+    assert (t.params.height_m - top) / t.params.height_m < limit, (sid, top / t.params.height_m)
+
+
+def test_hang_cap_on_a_synthetic_limb():
+    sk = skeleton.Skeleton()
+    pos = np.column_stack([np.linspace(0, 30, 31), np.zeros(31), np.full(31, 40.0)])          # 30 m の水平な枝（高さ 40 m）
+    ax = sk.add(1, -1, 0, pos, np.array([1.0, 0.0, 0.0]))
+    ax.radius = np.full(31, 0.1)
+    damage._hang(sk, ax, 3, sk.children_map(), np.random.default_rng(0), max_len=6.0)
+    tail = np.linalg.norm(np.diff(ax.pos[ax.neck:], axis=0), axis=1).sum()
+    assert 5.0 <= tail <= 7.5 and ax.neck == 3, (tail, ax.neck)
+    ax2 = sk.add(1, -1, 0, pos.copy(), np.array([1.0, 0.0, 0.0]))
+    ax2.radius = np.full(31, 0.1)
+    damage._hang(sk, ax2, 3, sk.children_map(), np.random.default_rng(0))                        # 上限なしなら先まで垂れる
+    assert np.linalg.norm(np.diff(ax2.pos[3:], axis=0), axis=1).sum() > 25.0
+
+
+def test_pine_needle_tufts_are_not_placed_on_the_trunk_surface_far_from_the_tip(monkeypatch):
+    calls = []
+    orig = leaf_points._place
+
+    def spy(axes, per_m, u0, rng, frac, th, sd, surface=False):
+        calls.append((u0, surface))
+        return orig(axes, per_m, u0, rng, frac, th, sd, surface)
+
+    monkeypatch.setattr(leaf_points, "_place", spy)
+    gen("kuromatsu", quality="PREVIEW")
+    assert any(surface and u0 >= 0.93 for u0, surface in calls) and not any(surface and u0 < 0.9 for u0, surface in calls)

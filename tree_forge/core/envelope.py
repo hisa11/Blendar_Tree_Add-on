@@ -22,8 +22,10 @@ def _raw(shape: str, t: np.ndarray) -> np.ndarray:
         return (0.22 + 0.78 * t ** 0.75) * np.sqrt(np.clip(1 - t ** 5, 0, 1))
     if shape == "umbrella":  # 低い枝は短く、上部が平たく広い
         return (0.30 + 0.70 * t ** 0.55) * np.sqrt(np.clip(1 - t ** 9, 0, 1))
-    if shape == "weeping":  # 低い位置まで広く、枝が垂れ下がる。頂部は丸いドーム（細いと、幹の先が裸で突き出る）
-        return (np.sin(np.pi * np.clip(t, 1e-6, 1) ** 0.75) ** 0.55) * 0.9 + 0.2 * (1 - t)
+    if shape == "weeping":  # 低い位置まで広い釣鐘形。頂部は丸いドーム（細いと幹の先が裸で突き出る）、裾は垂れた枝の暖簾
+        dome = (np.sin(np.pi * np.clip(t, 1e-6, 1) ** 0.75) ** 0.55) * 0.9 + 0.2 * (1 - t)
+        skirt = 0.82 * np.clip((0.55 - t) / 0.2, 0.0, 1.0)
+        return np.maximum(dome, skirt)
     if shape == "irregular":
         base = np.sqrt(np.clip(1 - (2 * t - 1) ** 2, 0, 1)) + 0.12
         return base * (0.78 + 0.22 * np.sin(5.3 * t + 1.1) * np.cos(2.1 * t))
@@ -58,7 +60,10 @@ def reach(p, z: np.ndarray) -> np.ndarray:
     half = 0.5 * p.crown_width_m
     t = (z - hb) / max(H - hb, 1e-6)
     e = shape_value(p.crown_shape, t)
-    below = np.where(z < hb, shape_value(p.crown_shape, np.array(0.0)) * np.clip(z / max(hb, 1e-6), 0.0, 1.0), 0.0)
+    ramp = np.clip(z / max(hb, 1e-6), 0.0, 1.0)
+    if p.crown_shape == "weeping":                       # 枝垂れは枝下より下へも暖簾状に垂れ、地面近くまで届く
+        ramp = ramp ** 0.3
+    below = np.where(z < hb, shape_value(p.crown_shape, np.array(0.0)) * ramp, 0.0)
     out = np.where(z < hb, below, e)
     r = half * out
     inside_crown = (z >= hb) & (z <= 0.985 * H)
