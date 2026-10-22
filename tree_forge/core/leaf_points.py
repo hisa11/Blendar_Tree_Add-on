@@ -199,12 +199,16 @@ def _hero_twigs(p, sk: Skeleton, l2: list) -> tuple[float, float]:
     r_stem = max((a.radius[0] for a in stems), default=0.0) * p.root_flare_scale
     ring = [max(3, allometry.ring_verts("HERO", lv, r_stem)) for lv in range(4)]
 
-    def cost(a):
-        return (int(allometry.n_segments(np.array([a.length()]), a.level, "HERO")[0]) * 2 + 1) * ring[a.level]
+    def cost(lens, level):                                                  # 軸ごとの三角形数の見積り（長さの配列から一括で）
+        return (allometry.n_segments(np.asarray(lens, float), level, "HERO").astype(float) * 2 + 1) * ring[level]
 
-    fixed = sum(cost(a) for a in live if a.level <= 1 or (a.level == 2 and a.dead))     # 葉の付かない L2 は間引かれない
-    c2 = np.array([cost(a) for a in l2], float)
+    fixed = 0.0                                                             # 葉の付かない L2 は間引かれない
+    for lv in (0, 1, 2):
+        ls = [a.length() for a in live if a.level == lv and (lv <= 1 or a.dead)]
+        if ls:
+            fixed += float(cost(ls, lv).sum())
     lens = np.array([a.length() for a in l2])
+    c2 = cost(lens, 2)
     # L3 の平均の長さ。長い L2 ほど L3 も多く長いので、L2 の長さで重みを付ける。0.575 は位置 u に応じた係数 max(.15, 1-.75u) と乱数の平均
     twig_len = float((lens ** 2).sum() / lens.sum()) * p.l3_length_ratio * 0.575
     room = hq["tri_cap"] * 0.97 - fixed
@@ -240,27 +244,39 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     have = n_existing / leaves_per_twig                  # すでにある葉の点を、細枝何本ぶんかに換算
     if have >= VIRTUAL_DEADBAND * target:
         return empty
-    cum, cat_p, starts, ends, lens = [], [], [], [], []
-    off, k = 0.0, 0
-    for a in l2:                                          # 全 L2 の節を 1 本の配列にして、位置の探索を一括でする
+    # 全 L2 の節を 1 本の配列にして、位置の探索を一括でする（軸ごとに numpy を呼ぶと遅いので、弧長も一括で計算する）
+    P_list, sizes = [], []
+    for a in l2:
         n_use = a.neck + 1 if a.neck >= 0 else a.n
         if n_use < 2:
             continue
-        P = a.pos[:n_use]
-        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
-        if s[-1] < 0.05:
-            continue
-        cum.append(s + off)
-        cat_p.append(P)
-        starts.append(k)
-        ends.append(k + n_use)
-        lens.append(s[-1])
-        off += s[-1] + 1.0
-        k += n_use
-    if not lens:
+        P_list.append(a.pos[:n_use])
+        sizes.append(n_use)
+    if not P_list:
         return empty
-    G, PC = np.concatenate(cum), np.concatenate(cat_p)
-    starts, ends, lens = np.array(starts), np.array(ends), np.array(lens)
+    sizes = np.array(sizes)
+    ends = np.cumsum(sizes)
+    starts = ends - sizes
+    PC = np.concatenate(P_list)
+    seg = np.concatenate([[0.0], np.linalg.norm(PC[1:] - PC[:-1], axis=1)])
+    seg[starts] = 0.0                                                      # 軸の始まりは弧長 0
+    cs = np.cumsum(seg)
+    lens = cs[ends - 1] - cs[starts]
+    ok = lens >= 0.05
+    if not ok.any():
+        return empty
+    if not ok.all():
+        node_ok = np.repeat(ok, sizes)
+        PC, cs = PC[node_ok], cs[node_ok]
+        sizes, lens = sizes[ok], lens[ok]
+        ends = np.cumsum(sizes)
+        starts = ends - sizes
+        base_cs = cs[starts]
+    else:
+        base_cs = cs[starts]
+    off_axis = np.concatenate([[0.0], np.cumsum(lens + 1.0)[:-1]])          # 軸ごとの区切り（隣の軸と探索がまざらない）
+    axis_of_node = np.repeat(np.arange(len(sizes)), sizes)
+    G = cs - base_cs[axis_of_node] + off_axis[axis_of_node]
     offs = G[starts]
     missing = min(int(target - have), int(max_points / leaves_per_twig))
     if missing <= 0:

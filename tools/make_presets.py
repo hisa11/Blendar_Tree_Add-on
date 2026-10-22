@@ -87,7 +87,7 @@ PRESETS = [
        {"height_m": "M:最大35m(Wikipedia)", "dbh_cm": "E", "crown_width_m": "E", "growth": "E", "levels": "E",
         "leaves.length_cm": "E"},
        trunk={"trunk_wobble": 0.08}),
-    sp("kuromatsu", "クロマツ", "Pinus thunbergii", 18, 60, 12, "umbrella", 0.40, 0.4, 0.3,
+    sp("kuromatsu", "クロマツ", "Pinus thunbergii", 18, 60, 12, "umbrella", 0.40, 0.6, 0.3,
        [lv(65, 0.10, 2.5, 1.0, phyl="WHORL", whorl=4, wobble=0.35), lv(60, 0.20, 2.5, 0.45, wobble=0.4),
         lv(55, 0.20, 4.0, 0.40)],
        {"type": "NEEDLE_FASCICLE", "length_cm": 10, "fascicle": 2, "per_m": 30, "cluster": 10, "scale": 3.0, "geom": "CUTOUT_MESH", "evergreen": True,

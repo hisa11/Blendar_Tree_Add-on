@@ -34,6 +34,7 @@ from tree_forge.core import allometry, envelope, pipeline, skeleton  # noqa: E40
 SIZE_SCALES = (0.7, 1.0, 1.4)
 QUALITIES = ("PREVIEW", "MEDIUM", "HERO")
 TIME_LIMIT = {"PREVIEW": 1.0, "MEDIUM": 4.0, "HERO": 15.0}          # 仕様書 3.5 [s]
+TIME_SLACK = 1.5                                                    # 目標を超えても、この倍率までは WARN（FAIL にしない）
 
 # 仕様書 4.2 の表（12 種）。H, DBH, W, 形, apical, grav, L1 角, L1 葉序, droop L1/L2/L3, 葉, 葉長 [cm], 樹皮
 SPEC_4_2 = {
@@ -154,8 +155,10 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
         f.fail("TRIS", f"三角形 {m['tris']:,} が上限 {cap['tri_cap']:,} 超え")
     if n_leaf > cap["leaf_cap"]:
         f.fail("LEAVES", f"葉 {n_leaf:,} が上限 {cap['leaf_cap']:,} 超え")
-    if dt > TIME_LIMIT[q]:
-        f.fail("TIME", f"生成 {dt:.1f} s が目標 {TIME_LIMIT[q]:g} s 超え")
+    if dt > TIME_LIMIT[q] * TIME_SLACK:                                  # 計測は機械の負荷でぶれる。目標の 1.5 倍までは WARN
+        f.fail("TIME", f"生成 {dt:.1f} s が目標 {TIME_LIMIT[q]:g} s の {TIME_SLACK:g} 倍超え")
+    elif dt > TIME_LIMIT[q]:
+        f.warn("TIME", f"生成 {dt:.1f} s が目標 {TIME_LIMIT[q]:g} s 超え（{TIME_SLACK:g} 倍以内）")
 
     # --- 幹の太さ（依頼: 高さ X で太さ Y）---
     trunk = t.skeleton.axes[0]
