@@ -905,3 +905,74 @@ def test_shoot_spacing_and_length_follow_the_leaf_size():
     assert np.allclose(np.linalg.norm(tg, axis=1), 1.0, atol=1e-6)
     off = np.hypot(pts[:, 1], pts[:, 2])                                                   # 軸（x 軸）からの距離
     assert off.max() <= leaf_points.SHOOT_LEN_RATIO * 0.10 * 1.3 + 1e-6 and off.mean() > 0.02
+
+
+@pytest.mark.parametrize("sid", ["sugi", "picea_abies", "hinoki"])
+def test_conifer_tip_tapers_like_a_cone(sid):
+    """針葉樹の梢が、幹に葉が巻き付いた太さ一定の円筒（毛虫・ブラシ状）になっていた。梢の葉の広がりは樹冠の半径に沿って先細りする。"""
+    t = gen(sid, quality="MEDIUM", seed=7)
+    p = t.params
+    H = p.height_m
+    trunk = next(a for a in t.skeleton.axes if a.level == 0 and a.parent < 0)
+    pos = t.leaves.pos[t.leaves.is_leaf]
+    top = pos[pos[:, 2] > 0.93 * H]
+    assert len(top) > 50
+    cx, cy = np.interp(top[:, 2], np.maximum.accumulate(trunk.pos[:, 2]), trunk.pos[:, 0]), np.interp(
+        top[:, 2], np.maximum.accumulate(trunk.pos[:, 2]), trunk.pos[:, 1])
+    rho = np.hypot(top[:, 0] - cx, top[:, 1] - cy)
+    assert np.percentile(rho, 95) <= 1.1 * envelope.reach(p, top[:, 2]).max() + 0.1, (sid, np.percentile(rho, 95))
+
+
+def test_core_fill_stays_off_the_trunk_surface_and_only_for_conifers():
+    t = gen("sugi", quality="MEDIUM", seed=7)
+    p, sk = t.params, t.skeleton
+    trunk = next(a for a in sk.axes if a.level == 0 and a.parent < 0)
+    pts = t.leaves.pos[t.leaves.is_leaf][:2000]
+    pos, tg = leaf_points.core_fill_points(p, sk, np.vstack([pts] * 30), np.random.default_rng(0))
+    assert len(pos) == len(tg) > 0
+    zt = np.maximum.accumulate(trunk.pos[:, 2])
+    cx, cy = np.interp(pos[:, 2], zt, trunk.pos[:, 0]), np.interp(pos[:, 2], zt, trunk.pos[:, 1])
+    rho = np.hypot(pos[:, 0] - cx, pos[:, 1] - cy)
+    r_trunk = np.interp(pos[:, 2], zt, trunk.radius)
+    assert (rho >= 1.29 * r_trunk).all()                                      # 幹の表面には置かない
+    assert (rho <= np.maximum(leaf_points.CORE_FRAC * envelope.reach(p, pos[:, 2]), 1.3 * r_trunk) + 1e-6).all()      # 芯の中
+
+    calls = []
+    orig = leaf_points.core_fill_points
+    leaf_points.core_fill_points = lambda *a, **k: calls.append(1) or orig(*a, **k)
+    try:
+        gen("keyaki", quality="PREVIEW", seed=2)
+        assert not calls                                                      # 広葉樹には足さない
+        gen("hinoki", quality="PREVIEW", seed=2)
+        assert calls
+    finally:
+        leaf_points.core_fill_points = orig
+
+
+def test_narrow_leaves_hang_along_the_twig():
+    """ヤナギの細長い葉は枝を横切らず小枝に沿って垂れる（広葉の枝への角度 0.95 rad のままだと、毛羽立った玉になる）。"""
+    seen = {}
+    orig = leaf_points._orient
+
+    def spy(T, rng, theta_mean, *a, **k):
+        seen.setdefault("theta", theta_mean)
+        return orig(T, rng, theta_mean, *a, **k)
+
+    leaf_points._orient = spy
+    try:
+        gen("shidareyanagi", quality="PREVIEW", seed=2)
+        willow = seen.pop("theta")
+        gen("keyaki", quality="PREVIEW", seed=2)
+        keyaki = seen.pop("theta")
+    finally:
+        leaf_points._orient = orig
+    assert willow < 0.5 < keyaki
+
+
+def test_thin_branches_do_not_hang_like_wires():
+    """細い枝が針金のように宙に垂れた形になっていた。垂れ下がる折れ枝は、折れ口の半径が HANG_MIN_RADIUS 以上のものだけ。"""
+    for sid in ("quercus_robur", "iroha_momiji", "keyaki"):
+        t = gen(sid, quality="MEDIUM", seed=5, broken_branch_ratio=0.5, broken_hang_ratio=1.0, age_factor=1.5)
+        for a in t.skeleton.axes:
+            if a.neck >= 0 and a.radius is not None:
+                assert a.radius[a.neck] >= damage.HANG_MIN_RADIUS - 1e-9, (sid, a.radius[a.neck])

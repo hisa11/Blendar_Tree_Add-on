@@ -33,14 +33,14 @@
       "angle_deg": 45,
       "droop": 0.9,
       "density": 4.5,
-      "length_ratio": 0.6
+      "length_ratio": 0.8
     },
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 45,
       "droop": 1.0,
-      "density": 6.0,
-      "length_ratio": 0.45
+      "density": 4.0,
+      "length_ratio": 1.2
     }
   ],
   "leaves": {
@@ -49,6 +49,7 @@
     "width_ratio": 0.12,
     "per_m": 35,
     "cluster": 6,
+    "shoots": 0.0,
     "geom": "CUTOUT_MESH",
     "color": [
       0.18,

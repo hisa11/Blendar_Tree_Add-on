@@ -34,6 +34,7 @@ def _mark_dead(cm: dict, root: Axis) -> None:
 
 
 HANG_MAX_FRAC = 0.2      # 垂れ下がる部分の長さの上限（樹高比）。これより先は落ちて無くなる（糸のように地面まで届かない）
+HANG_MIN_RADIUS = 0.012  # 折れ口の半径 [m]。これより細い枝は垂れ下がらせず、その場で折る（細い針金が宙に垂れた形になる）
 
 
 def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator, max_len: float = float("inf")) -> None:
@@ -77,7 +78,7 @@ def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator, m
 
 
 STUB_PROTRUDE = (0.3, 1.5)      # 幹の表面からスタブが突き出す長さ [m]
-STUB_RADIUS_FRAC = (0.05, 0.09)  # スタブ付け根の半径 / その高さの幹の半径
+STUB_RADIUS_FRAC = (0.04, 0.12)  # スタブ付け根の半径 / その高さの幹の半径
 STUB_Z_MIN = 1.2                 # これより低い所には付けない（根張りの高さのほうが高ければそちらまで）
 
 
@@ -145,6 +146,8 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             b = rng.uniform(p.broken_pos_min, max(p.broken_pos_max, p.broken_pos_min))
             kb = int(np.clip(round(b * (ax.n - 1)), 2, ax.n - 2))
             hang = ax.level <= 2 and rng.random() < p.broken_hang_ratio
+            if hang and ax.radius is not None and ax.radius[kb] < HANG_MIN_RADIUS:
+                hang = False
             if hang:
                 _hang(sk, ax, kb, cm, rng, HANG_MAX_FRAC * p.height_m)
             else:

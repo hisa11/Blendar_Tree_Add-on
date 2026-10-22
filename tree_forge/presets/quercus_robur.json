@@ -24,17 +24,17 @@
       "phyllotaxis": "SPIRAL",
       "angle_deg": 60,
       "droop": 0.05,
-      "density": 1.8,
+      "density": 1.0,
       "length_ratio": 1.0,
-      "wobble": 0.4
+      "wobble": 0.7
     },
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 60,
       "droop": 0.1,
-      "density": 2.5,
+      "density": 3.5,
       "length_ratio": 0.5,
-      "wobble": 0.4
+      "wobble": 0.5
     },
     {
       "phyllotaxis": "SPIRAL",

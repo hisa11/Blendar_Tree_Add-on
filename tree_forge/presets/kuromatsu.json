@@ -10,14 +10,14 @@
   },
   "crown": {
     "shape": "umbrella",
-    "base_ratio": 0.35
+    "base_ratio": 0.4
   },
   "growth": {
-    "apical_dominance": 0.6,
+    "apical_dominance": 0.4,
     "gravitropism": 0.3,
     "phototropism": 0.2,
-    "trunk_split_count": 1,
-    "trunk_split_height": 0.3
+    "trunk_split_count": 2,
+    "trunk_split_height": 0.5
   },
   "levels": [
     {

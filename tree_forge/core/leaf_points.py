@@ -286,7 +286,7 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     if len(tw) == 0:
         return empty
     sa = s0[tw] + (length[tw] - s0[tw]) * rng.random(len(tw))
-    sag = 0.3 * p.l3_droop
+    sag = 0.3 * p.l3_droop + 0.9 * max(p.l3_droop - 0.7, 0.0)         # 垂れが強い樹種（シダレヤナギ）の細枝は、ほぼ真下へ下がる
     z = np.array([0.0, 0.0, 1.0])
     pt = base[tw] + d[tw] * sa[:, None] - z * (sag * sa ** 2 / length[tw])[:, None]
     tg = normalize(d[tw] - z * (2.0 * sag * sa / length[tw])[:, None])
@@ -314,6 +314,58 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     return pt[inside], tg[inside]
 
 
+CORE_FRAC = 0.5          # 針葉樹の幹まわりの芯: 樹冠の半径に対する幅
+CORE_TARGET = 1.0        # 芯の葉の密度を、樹冠全体の平均密度のこの割合まで満たす
+CORE_MAX = 0.5          # 足す葉の数の上限（既にある葉の数に対する割合）
+
+
+def core_fill_points(p, sk: Skeleton, pts: np.ndarray, rng):
+    """針葉樹の幹まわり（樹冠の芯）で、枝と枝のあいだに幹が丸見えになるのを、小さな房で埋める。
+
+    本物の針葉樹は枝が密に重なり、幹は外から見えない。ここでは枝の本数が足りない（梢に近いほど枝が短く少ない・大木で枝が減る）ぶん、
+    樹冠全体の平均密度（葉の数 ÷ 樹冠の体積）に届くまで、幹から離れた円錐状の芯（半径 = 樹冠の半径 × CORE_FRAC）に房を足す。
+    幹の表面には置かない（葉が幹に張り付いた毛虫状にならない）。(位置, 向き) を返す。
+    """
+    empty = (np.zeros((0, 3)), np.zeros((0, 3)))
+    trunk = next((a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed), None)
+    if trunk is None or trunk.radius is None or len(pts) < 100:
+        return empty
+    H = p.height_m
+    zb = p.crown_base_ratio * H
+    zs = np.linspace(zb, 0.985 * H, 49)
+    zc, dz = 0.5 * (zs[1:] + zs[:-1]), np.diff(zs)
+    R = envelope.reach(p, zc)
+    cx, cy = _center_fn(trunk)(pts[:, 2])
+    rho = np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)
+    inside = pts[:, 2] >= zb
+    dens = inside.sum() / max(float((np.pi * R ** 2 * dz).sum()), 1e-9)
+    bins = np.clip(np.searchsorted(zs, pts[:, 2]) - 1, 0, len(zc) - 1)
+    in_core = inside & (rho <= CORE_FRAC * R[bins])
+    have = np.bincount(bins[in_core], minlength=len(zc))
+    want = CORE_TARGET * dens * np.pi * (CORE_FRAC * R) ** 2 * dz
+    n_fill = np.clip(want - have, 0.0, None)
+    total = float(n_fill.sum())
+    if total < 1.0:
+        return empty
+    n_fill *= min(1.0, CORE_MAX * len(pts) / total)
+    cnt = (n_fill + rng.random(len(zc))).astype(int)
+    b = np.repeat(np.arange(len(zc)), cnt)
+    if len(b) == 0:
+        return empty
+    z = zs[b] + dz[b] * rng.random(len(b))
+    zt = np.maximum.accumulate(trunk.pos[:, 2])
+    r_trunk = np.interp(z, zt, trunk.radius)
+    cx, cy = _center_fn(trunk)(z)
+    outer = CORE_FRAC * envelope.reach(p, z)
+    r0 = 1.3 * r_trunk
+    rad = r0 + np.maximum(outer - r0, 0.0) * np.sqrt(rng.random(len(b)))
+    phi = rng.uniform(0.0, 2.0 * math.pi, len(b))
+    radial = np.stack([np.cos(phi), np.sin(phi), np.zeros(len(b))], axis=1)
+    pos = np.stack([cx, cy, z], axis=1) + radial * rad[:, None]
+    tg = normalize(radial + np.array([0.0, 0.0, 0.25]) + rng.normal(0.0, 0.2, (len(b), 3)))
+    return pos, tg
+
+
 def generate(p, sk: Skeleton, st) -> LeafData:
     rng = st.leaves
     flowering = p.flower_density > 0.0
@@ -334,6 +386,8 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 葉 ---
     if leaf_frac > 0.01 and p.foliage_amount > 0.0:
         theta = {"BROAD": 0.95, "FAN": 0.95, "SCALE_TWIG": 0.7, "NEEDLE_FASCICLE": 0.5, "NEEDLE_SPIRAL": 0.12}[p.leaf_type]
+        if p.leaf_type == "BROAD" and p.leaf_width_ratio < 0.25:
+            theta = 0.4                                         # 細長い葉（ヤナギ）は枝を横切らず、小枝に沿って並んで垂れる
         per_m = p.leaves_per_m * p.foliage_amount * allometry.size_ratio(p)
         start = p.leaf_start if p.leaf_start >= 0.0 else _AUTO_START.get(p.leaf_type, 0.2)
         done = {a.id for a in axes}
@@ -366,7 +420,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         live = [a for a in sk.axes if not a.removed]
         forked = {a.parent for a in live if a.level == 0 and a.parent >= 0}       # 先で幹が分かれる幹の上端は、分岐部（頂部ではない）
         tops = [a for a in live if a.level == 0 and not a.dead and a.id not in forked]
-        u_top = 0.93 if p.leaf_type == "NEEDLE_FASCICLE" else 0.82                  # マツの針の房は細い枝先だけ。幹の肌には先端のごく手前から
+        u_top = {"NEEDLE_FASCICLE": 0.93, "NEEDLE_SPIRAL": 0.9, "SCALE_TWIG": 0.9}.get(p.leaf_type, 0.82)   # マツの針の房は細い枝先だけ。針葉樹は幹の肌に付けるのを梢の近くだけに（下は芯の房で埋める）
         if shoots > 0.0:
             s_pts, s_tg = _place_shoots(tops, per_m * 1.0 * shoots, u_top, rng, leaf_frac, inst_size, surface=True)
             if shoots < 1.0:
@@ -390,7 +444,10 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             if len(t_pts):
                 e1, e2 = perp_basis(t_tg)
                 phi = rng.uniform(0.0, 2.0 * math.pi, len(t_pts))
-                rad = 0.35 * tip * np.sqrt(rng.random(len(t_pts)))
+                # 広がりは樹冠の半径まで（円錐の先端で、円筒のブラシにならない）。先へ行くほど細くなる
+                s_up = np.clip((t_pts[:, 2] - (a.pos[-1, 2] - tip)) / tip, 0.0, 1.0)
+                rmax = np.minimum(0.35 * tip, 0.9 * envelope.reach(p, t_pts[:, 2])) * (1.0 - 0.6 * s_up)
+                rad = rmax * np.sqrt(rng.random(len(t_pts)))
                 t_pts = t_pts + (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2) * rad[:, None]
                 extra.append((t_pts, t_tg))
         # 足りない細枝の葉は、末端の枝の葉（pts）だけを基準に足す。「葉を付ける枝」で足す内側の枝の葉は、その上にさらに加わる
@@ -399,6 +456,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         pts, tg = np.concatenate([pts, v_pts]), np.concatenate([tg, v_tg])
         for e_pts, e_tg in extra:
             pts, tg = np.concatenate([pts, e_pts]), np.concatenate([tg, e_tg])
+        if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG"):      # 針葉樹: 幹まわりの隙間を、幹から離れた房で埋める
+            c_pts, c_tg = core_fill_points(p, sk, pts, rng)
+            pts, tg = np.concatenate([pts, c_pts]), np.concatenate([tg, c_tg])
         n = len(pts)
         boost = 1.0
         if n > cap:

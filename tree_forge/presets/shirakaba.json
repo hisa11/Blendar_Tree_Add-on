@@ -70,9 +70,9 @@
       0.7
     ],
     "branch_color": [
-      0.2,
-      0.14,
-      0.11
+      0.45,
+      0.4,
+      0.34
     ]
   },
   "_src": {
@@ -82,5 +82,9 @@
     "growth": "E",
     "levels": "E",
     "leaves.length_cm": "M:3-9cm"
+  },
+  "trunk": {
+    "root_flare_scale": 1.1,
+    "root_count": 3
   }
 }
