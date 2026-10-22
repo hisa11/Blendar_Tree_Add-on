@@ -96,6 +96,53 @@ def _place(axes, per_m: float, u0: float, rng, frac_scale: float, theta_mean: fl
     return np.concatenate(P), np.concatenate(Tn)
 
 
+SHOOT_SPACING = 0.12     # [m] 側枝（葉の房を付ける小さな枝）の間隔
+SHOOT_LEN_RATIO = 1.1    # 側枝の長さ = 葉 1 房の大きさ × この倍率
+
+
+def _place_shoots(axes, per_m: float, u0: float, rng, frac_scale: float, inst_size: float):
+    """軸から側枝を出し、その上に葉を置く。位置・接線（側枝の向き）を返す。
+
+    軸の線上に葉を並べると、細い枝が葉の鞘に包まれた毛虫になる。本物の枝は小枝が分かれ、その先に葉が付き、小枝の間に隙間がある。
+    軸に沿って SHOOT_SPACING ごとに側枝（長さは葉 1 房の大きさ程度）を出し、1 本の側枝に葉を並べる。
+    軸 1 m あたりの葉の数は _place と同じ per_m（側枝 1/SHOOT_SPACING 本 × 1 本あたり per_m × SHOOT_SPACING 枚）。
+    """
+    P, Tn = [], []
+    n_inst = max(1, int(round(per_m * SHOOT_SPACING)))
+    shoot_len = float(np.clip(SHOOT_LEN_RATIO * inst_size, 0.05, 0.30))
+    for a in axes:
+        n_use = a.neck + 1 if a.neck >= 0 else a.n
+        if n_use < 2:
+            continue
+        pos = a.pos[:n_use]
+        seg = np.linalg.norm(np.diff(pos, axis=0), axis=1)
+        s = np.concatenate([[0.0], np.cumsum(seg)])
+        L = s[-1]
+        if L < 0.02:
+            continue
+        s0 = u0 * L
+        n_sh = int((L - s0) / SHOOT_SPACING * frac_scale + rng.random())
+        if n_sh <= 0:
+            continue
+        sa = s0 + (L - s0) * (np.arange(n_sh) + rng.random(n_sh)) / n_sh
+        idx = np.clip(np.searchsorted(s, sa, side="right") - 1, 0, n_use - 2)
+        f = ((sa - s[idx]) / np.maximum(seg[idx], 1e-9))[:, None]
+        base = pos[idx] * (1 - f) + pos[idx + 1] * f
+        tg = normalize(pos[idx + 1] - pos[idx])
+        e1, e2 = perp_basis(tg)
+        phi = rng.uniform(0.0, 2.0 * math.pi) + np.arange(n_sh) * allometry.golden_angle() + rng.normal(0.0, 0.3, n_sh)
+        alpha = np.clip(rng.normal(0.95, 0.25, n_sh), 0.35, 1.4)
+        d = normalize(np.cos(alpha)[:, None] * tg + np.sin(alpha)[:, None] * (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2))
+        ln = shoot_len * rng.uniform(0.7, 1.3, n_sh)
+        sh = np.repeat(np.arange(n_sh), n_inst)
+        w = 0.25 + 0.75 * (np.tile(np.arange(n_inst), n_sh) + rng.random(len(sh))) / n_inst       # 側枝の上の位置（付け根の少し先から先端まで）
+        P.append(base[sh] + d[sh] * (ln[sh] * w)[:, None])
+        Tn.append(d[sh])
+    if not P:
+        return np.zeros((0, 3)), np.zeros((0, 3))
+    return np.concatenate(P), np.concatenate(Tn)
+
+
 def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: float, roll_sd: float = 0.3):
     n = len(T)
     e1, e2 = perp_basis(T)
@@ -114,6 +161,7 @@ def _orient(T: np.ndarray, rng, theta_mean: float, theta_sd: float, hint_up: flo
 
 MAX_BOOST = 2.5          # 上限に達したとき、1枚あたりを大きくする倍率の上限
 _AUTO_START = {"NEEDLE_SPIRAL": 0.1, "SCALE_TWIG": 0.1, "NEEDLE_FASCICLE": 0.5}     # それ以外は 0.2
+_AUTO_SHOOTS = {"BROAD": 1.0, "FAN": 1.0, "SCALE_TWIG": 1.0}                                         # 側枝に葉を付ける割合（針葉は従来どおり枝に沿う）
 _AUTO_SCATTER = {"NEEDLE_SPIRAL": 0.7}                                              # それ以外は 0（従来どおり枝に沿う）
 SCATTER_POS = 0.35       # 位置の散らばり: 房の大きさに対する、枝からの最大のずれの割合（scatter 1 のとき）
 SCATTER_THETA = 0.55     # 向きの散らばり: 枝の接線からの角度の平均に足す量 [rad]（scatter 1 のとき）
@@ -286,7 +334,20 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         per_m = p.leaves_per_m * p.foliage_amount * allometry.size_ratio(p)
         start = p.leaf_start if p.leaf_start >= 0.0 else _AUTO_START.get(p.leaf_type, 0.2)
         done = {a.id for a in axes}
-        pts, tg = _place(axes, per_m, start, rng, leaf_frac, theta, 0.25)
+        shoots = p.leaf_shoots if p.leaf_shoots >= 0.0 else _AUTO_SHOOTS.get(p.leaf_type, 0.0)
+        inst_size = float(np.ptp(leaf_shapes.leaf_source(p)[0], axis=0).max()) * p.leaf_scale if shoots > 0.0 else 0.0
+
+        def place(axs, pm, u0):
+            """枝に沿って並べる葉と、側枝に付ける葉（割合 shoots）に分けて置く。"""
+            if shoots <= 0.0:
+                return _place(axs, pm, u0, rng, leaf_frac, theta, 0.25)
+            b = _place_shoots(axs, pm * shoots, u0, rng, leaf_frac, inst_size)
+            if shoots >= 1.0:
+                return b
+            a = _place(axs, pm * (1.0 - shoots), u0, rng, leaf_frac, theta, 0.25)
+            return np.concatenate([a[0], b[0]]), np.concatenate([a[1], b[1]])
+
+        pts, tg = place(axes, per_m, start)
         reach = p.leaf_reach
         if reach == "AUTO":
             reach = "OUTER" if p.leaf_type in ("NEEDLE_SPIRAL", "SCALE_TWIG", "NEEDLE_FASCICLE") else "TERMINAL"
@@ -294,9 +355,9 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         if reach in ("OUTER", "ALL"):                      # 末端の一段手前の枝の外側半分（量感）
             sub1 = _sub_levels(sk, 1, done)
             done |= {a.id for a in sub1}
-            extra.append(_place(sub1, per_m * 0.5, 0.45, rng, leaf_frac, theta, 0.25))
+            extra.append(place(sub1, per_m * 0.5, 0.45))
         if reach == "ALL":                                  # さらに手前の枝の外側 40%
-            extra.append(_place(_sub_levels(sk, 2, done), per_m * 0.25, 0.6, rng, leaf_frac, theta, 0.25))
+            extra.append(place(_sub_levels(sk, 2, done), per_m * 0.25, 0.6))
         # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける。
         # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
@@ -312,7 +373,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             L = a.length()
             if L < 3.0 * tip:
                 continue
-            t_pts, t_tg = _place([a], per_m * 2.0, 1.0 - tip / L, rng, leaf_frac, theta, 0.25)
+            t_pts, t_tg = _place([a], max(per_m * 2.0, 60.0 / tip), 1.0 - tip / L, rng, leaf_frac, theta, 0.25)       # 先端 1 本あたり 60 房以上
             if len(t_pts):
                 e1, e2 = perp_basis(t_tg)
                 phi = rng.uniform(0.0, 2.0 * math.pi, len(t_pts))

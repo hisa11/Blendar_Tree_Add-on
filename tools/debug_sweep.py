@@ -240,7 +240,7 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
         f.fail("NOLEAF", "葉が 1 枚もない（季節 %.2f）" % p.season)
     if n_leaf:
         lp = t.leaves.pos[t.leaves.is_leaf]
-        gap = (p.height_m - float(np.percentile(lp[:, 2], 99.9))) / p.height_m      # 先端の何 % に葉がないか
+        gap = (p.height_m - float(np.sort(lp[:, 2])[-min(30, len(lp))])) / p.height_m      # 先端の何 % に葉がないか（上から 30 枚目の葉の高さ。葉が 100 万枚でも同じ基準）
         m["top_gap"] = gap
         if gap > 0.15:
             f.fail("BARETOP", f"葉の最高位置が樹高の {100 - gap * 100:.0f}%。先端の {gap * 100:.0f}% に葉がない（裸の梢）")

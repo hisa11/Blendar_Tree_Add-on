@@ -32,21 +32,21 @@
       "phyllotaxis": "SPIRAL",
       "angle_deg": 55,
       "droop": 0.1,
-      "density": 2.5,
+      "density": 4.0,
       "length_ratio": 0.45
     },
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 55,
       "droop": 0.1,
-      "density": 4.0,
+      "density": 6.5,
       "length_ratio": 0.4
     }
   ],
   "leaves": {
     "type": "FAN",
     "length_cm": 4.5,
-    "per_m": 100,
+    "per_m": 24,
     "cluster": 5,
     "scatter": 0.8,
     "geom": "CUTOUT_MESH",

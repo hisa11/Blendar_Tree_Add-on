@@ -32,14 +32,14 @@
       "phyllotaxis": "SPIRAL",
       "angle_deg": 45,
       "droop": 0.9,
-      "density": 3.0,
+      "density": 4.5,
       "length_ratio": 0.6
     },
     {
       "phyllotaxis": "SPIRAL",
       "angle_deg": 45,
       "droop": 1.0,
-      "density": 4.0,
+      "density": 6.0,
       "length_ratio": 0.45
     }
   ],
@@ -47,7 +47,7 @@
     "type": "BROAD",
     "length_cm": 11,
     "width_ratio": 0.12,
-    "per_m": 75,
+    "per_m": 35,
     "cluster": 6,
     "geom": "CUTOUT_MESH",
     "color": [

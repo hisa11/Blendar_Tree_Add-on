@@ -847,7 +847,7 @@ def test_weeping_crown_has_a_dome_top_and_a_curtain_skirt():
 def test_no_bare_wand_above_the_crown(sid, seed, limit):
     """梢の先端が葉のない棒として樹冠から突き出していた（先端に葉の房を足す。足さないとヤナギ・トウヒは 8〜10% の高さが裸）。"""
     t = gen(sid, quality="MEDIUM", seed=seed)
-    top = np.percentile(t.leaves.pos[t.leaves.is_leaf][:, 2], 99.9)
+    top = np.sort(t.leaves.pos[t.leaves.is_leaf][:, 2])[-30]                  # 上から 30 枚目の葉の高さ
     assert (t.params.height_m - top) / t.params.height_m < limit, (sid, top / t.params.height_m)
 
 
@@ -876,3 +876,32 @@ def test_pine_needle_tufts_are_not_placed_on_the_trunk_surface_far_from_the_tip(
     monkeypatch.setattr(leaf_points, "_place", spy)
     gen("kuromatsu", quality="PREVIEW")
     assert any(surface and u0 >= 0.93 for u0, surface in calls) and not any(surface and u0 < 0.9 for u0, surface in calls)
+
+
+# --- 葉を付ける小枝（毛虫状の葉）--------------------------------------------------------------
+def test_leaf_shoots_open_gaps_around_twigs():
+    """枝の線上に葉を並べると、細い枝が葉の鞘に包まれた毛虫になる。側枝（点だけ）に付けると、枝から離れた位置に房が散る。
+    葉の総数は変えない。"""
+    kw = dict(quality="HERO", seed=3, season=0.5)
+    line = gen("shirakaba", leaf_shoots=0.0, **kw)
+    shoot = gen("shirakaba", leaf_shoots=1.0, **kw)
+    assert abs(shoot.leaves.is_leaf.sum() / line.leaves.is_leaf.sum() - 1.0) < 0.1
+    d0, d1 = _leaf_offset_from_branches(line), _leaf_offset_from_branches(shoot)
+    assert d1 > d0 + 0.02, (d0, d1)
+    # 自動(-1): 広葉は 1、針葉は 0（従来どおり）
+    auto = gen("shirakaba", leaf_shoots=-1.0, **kw)
+    assert np.array_equal(auto.leaves.pos, shoot.leaves.pos)
+    a = gen("sugi", quality="PREVIEW", leaf_shoots=-1.0)
+    b = gen("sugi", quality="PREVIEW", leaf_shoots=0.0)
+    assert np.array_equal(a.leaves.pos, b.leaves.pos)
+
+
+def test_shoot_spacing_and_length_follow_the_leaf_size():
+    ax = skeleton.Skeleton().add(3, -1, 0, np.column_stack([np.linspace(0, 1.0, 11), np.zeros(11), np.zeros(11)]),
+                                 np.array([1.0, 0.0, 0.0]))
+    rng = np.random.default_rng(0)
+    pts, tg = leaf_points._place_shoots([ax], per_m=96.0, u0=0.0, rng=rng, frac_scale=1.0, inst_size=0.10)
+    assert abs(len(pts) - 96) < 25                                                         # 1 m あたり per_m 房
+    assert np.allclose(np.linalg.norm(tg, axis=1), 1.0, atol=1e-6)
+    off = np.hypot(pts[:, 1], pts[:, 2])                                                   # 軸（x 軸）からの距離
+    assert off.max() <= leaf_points.SHOOT_LEN_RATIO * 0.10 * 1.3 + 1e-6 and off.mean() > 0.02
