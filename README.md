@@ -5,6 +5,12 @@
 
 ![樹種](docs/images/species.jpg)
 
+13 樹種を 1 つの景色に並べた引き（大きさの比較。人の背丈の目線）と、樹冠に近づいた寄り（枝の分かれ方と葉の付き方。高品質）です。
+
+![樹種の引き](docs/images/species_far.jpg)
+
+![樹種の寄り](docs/images/species_near.jpg)
+
 骨格と幹・枝のメッシュは Python（numpy）で作り、葉・花は Geometry Nodes のインスタンスで置きます。
 Geometry Nodes のモディファイア入力（`modifier["Socket_x"]` / `modifier.properties`）は一切使わないので、
 5.2 で変わった API の影響を受けず、5.1 と 5.2 で同じコードが動きます。
