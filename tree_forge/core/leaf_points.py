@@ -436,7 +436,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
             L = a.length()
             if L < 3.0 * tip:
                 continue
-            pm_tip = max(per_m * 2.0, 60.0 / tip)                                                                # 先端 1 本あたり 60 房以上
+            pm_tip = max(per_m * 0.8, 25.0 / tip)                                                                 # 先端 1 本あたり 25 房以上（多いと梢だけ濃い筒になる）
             if shoots > 0.0:
                 t_pts, t_tg = _place_shoots([a], pm_tip, 1.0 - tip / L, rng, leaf_frac, inst_size)
             else:

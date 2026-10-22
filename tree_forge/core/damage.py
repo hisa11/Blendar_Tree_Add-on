@@ -103,7 +103,7 @@ def trim_dead_near_ground(p, sk: Skeleton, cm: dict) -> None:
 
 
 STUB_PROTRUDE = (0.3, 1.5)      # 幹の表面からスタブが突き出す長さ [m]
-STUB_RADIUS_FRAC = (0.04, 0.12)  # スタブ付け根の半径 / その高さの幹の半径
+STUB_RADIUS_FRAC = (0.05, 0.16)  # スタブ付け根の半径 / その高さの幹の半径
 STUB_Z_MIN = 1.2                 # これより低い所には付けない（根張りの高さのほうが高ければそちらまで）
 
 

@@ -67,5 +67,6 @@ def reach(p, z: np.ndarray) -> np.ndarray:
     out = np.where(z < hb, below, e)
     r = half * out
     inside_crown = (z >= hb) & (z <= 0.985 * H)
-    r = np.where(inside_crown, np.maximum(r, MIN_REACH), r)
+    floor = MIN_REACH * np.clip((0.985 * H - z) / (0.06 * H), 0.2, 1.0)           # 梢の最上部は細く尖る（0.3 m の筒のまま終わらない）
+    r = np.where(inside_crown, np.maximum(r, floor), r)
     return np.where((z > H) | (z < 0), 0.0, r)

@@ -108,7 +108,7 @@
     "broken_branch_ratio": 0.1,
     "broken_hang_ratio": 0.35,
     "trunk_stubs": true,
-    "trunk_stub_density": 1.0
+    "trunk_stub_density": 2.0
   },
   "profile": [
     [

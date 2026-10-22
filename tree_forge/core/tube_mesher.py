@@ -20,6 +20,7 @@ from .util import normalize, perp_basis, rotate_about
 
 PART_TRUNK, PART_BRANCH, PART_TWIG, PART_LEAF, PART_FLOWER, PART_FRUIT, PART_ROOT = range(7)
 SLOT_BROKEN = 7
+BREAK_PAINT_MAX = 0.15     # [m] 折れ口の色を塗る区間の長さの上限
 TWIG_RADIUS = 0.012          # 付け根の半径がこれ未満の枝は「小枝」
 
 
@@ -191,9 +192,10 @@ def _group(p, axs, V, dist, dmax, rng, h_root):
     part_seg[is_root[:, None] & (z_mid < h_root)] = PART_ROOT
     brk_seg = np.zeros((A, S), bool)
     for i, a in enumerate(axs):
-        if a.broken and a.n >= 2:
+        # 折れ口の色は、短い区間（折れ口のごく近く）だけに塗る。長い区間まで塗ると、枝の本体が淡い木質色の串に見える
+        if a.broken and a.n >= 2 and np.linalg.norm(a.pos[a.n - 1] - a.pos[a.n - 2]) <= BREAK_PAINT_MAX:
             brk_seg[i, a.n - 2] = True
-        if 0 <= a.neck < a.n - 1:
+        if 0 <= a.neck < a.n - 1 and np.linalg.norm(a.pos[a.neck + 1] - a.pos[a.neck]) <= BREAK_PAINT_MAX:
             brk_seg[i, a.neck] = True
     part_q = np.repeat(part_seg[a_i, k_i], V)
     brk_q = np.repeat(brk_seg[a_i, k_i], V)
