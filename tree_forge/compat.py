@@ -9,11 +9,14 @@ import bpy
 def build_label() -> str:
     """このビルドの表示用バージョン（zip 化したときに入る build_info.json から。無ければ開発版）。
 
-    例: 0.1.0+93.d4453be（0.1.0 の 93 コミット目、コミット d4453be）。未コミットの変更を含むと末尾に .dirty。"""
+    リリース版（安定版）: 0.1.0 安定版（stable）。開発版（デバッグ中）: 0.1.0+dev.93.d4453be 開発版（93 コミット目、コミット d4453be）。
+    未コミットの変更を含むと末尾に .dirty。"""
     import json
     try:
         info = json.loads((Path(__file__).parent / "build_info.json").read_text(encoding="utf-8"))
-        return f'{info["version"]}（{info["built_at"]}）'
+        if info.get("release"):
+            return f'{info["base_version"]} 安定版（{info["channel"]}、{info["built_at"]}）'
+        return f'{info["version"]} 開発版（{info["built_at"]}）'
     except (OSError, ValueError, KeyError):
         return "開発版（zip 化していない）"
 

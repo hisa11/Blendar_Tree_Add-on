@@ -62,8 +62,13 @@ Geometry Nodes のモディファイア入力（`modifier["Socket_x"]` / `modifi
 ## インストール
 
 ```
-python tools/build_zip.py        # dist/tree_forge-0.1.0+<コミット数>.<コミット>.zip ができる（どのビルドか分かるよう、zip 内のバージョンに git の情報が付く）
+python tools/build_zip.py            # 開発版（デバッグ中）: dist/tree_forge-0.1.0+dev.<コミット数>.<コミット>.zip
+python tools/build_zip.py --release  # リリース版（安定版）: dist/tree_forge-0.1.0+stable.zip（未コミットの変更があると作らない）
 ```
+
+どのビルドか分かるよう、zip 内のバージョンに印が付きます（semver のビルドメタデータ。Ubuntu の LTS のような印）。
+**`+stable` はリリース版**、**`+dev.…` はデバッグ中の開発版**（末尾の `.dirty` は未コミットの変更を含むビルド）です。パネルの下端にも「0.1.0 安定版（stable）」または「0.1.0+dev.93.d4453be 開発版」と出ます。
+リポジトリ上のマニフェストは `0.1.0` のままです。リリースのコミットには `Release 0.1.0 (stable)` のメッセージと `v0.1.0-stable` のタグを付けます。
 
 Blender の「プリファレンス → 拡張機能 → ディスクからインストール」でその zip を選びます。
 Blender 本体があれば公式のコマンドでも作れます。
