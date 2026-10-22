@@ -315,8 +315,8 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
 
 
 CORE_FRAC = 0.5          # 針葉樹の幹まわりの芯: 樹冠の半径に対する幅
-CORE_TARGET = 1.0        # 芯の葉の密度を、樹冠全体の平均密度のこの割合まで満たす
-CORE_MAX = 0.5          # 足す葉の数の上限（既にある葉の数に対する割合）
+CORE_TARGET = 2.0        # 芯の葉の密度を、樹冠全体の平均密度のこの割合まで満たす
+CORE_MAX = 0.8          # 足す葉の数の上限（既にある葉の数に対する割合）
 
 
 def core_fill_points(p, sk: Skeleton, pts: np.ndarray, rng):
