@@ -976,3 +976,20 @@ def test_thin_branches_do_not_hang_like_wires():
         for a in t.skeleton.axes:
             if a.neck >= 0 and a.radius is not None:
                 assert a.radius[a.neck] >= damage.HANG_MIN_RADIUS - 1e-9, (sid, a.radius[a.neck])
+
+
+@pytest.mark.parametrize("sid", ["quercus_robur", "keyaki", "sugi"])
+def test_dead_twigs_do_not_hang_down_to_the_ground(sid):
+    """枯れた細枝（L2・L3）が、針金のように地面まで垂れていた。地面から樹高の 8%（最低 1 m）より下には残さない。"""
+    for seed in (1, 2, 3):
+        t = gen(sid, quality="MEDIUM", seed=seed, dead_branch_ratio=0.5)
+        floor = max(damage.DEAD_FLOOR_MIN, damage.DEAD_FLOOR_FRAC * t.params.height_m)
+        dead = [a for a in t.skeleton.axes if a.level >= 2 and a.dead]
+        assert dead
+        assert min(float(a.pos[:, 2].min()) for a in dead) >= floor - 1e-9
+
+
+def test_weeping_willow_keeps_its_low_hanging_twigs():
+    t = gen("shidareyanagi", quality="MEDIUM", seed=3, dead_branch_ratio=0.5)
+    low = [a for a in t.skeleton.axes if a.level >= 2 and float(a.pos[:, 2].min()) < 0.08 * t.params.height_m]
+    assert low                                                                # 枝垂れは暖簾が地面近くまで届く（対象外）

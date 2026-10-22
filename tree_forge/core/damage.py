@@ -77,6 +77,31 @@ def _hang(sk: Skeleton, ax: Axis, kb: int, cm: dict, rng: np.random.Generator, m
     ax.neck = kb
 
 
+DEAD_FLOOR_FRAC = 0.08     # 枯れた細い枝（L2・L3）が垂れ下がってよい下限の高さ（樹高比）。これより下は切り落とす（糸が地面まで届かない）
+DEAD_FLOOR_MIN = 1.0       # [m]
+
+
+def trim_dead_near_ground(p, sk: Skeleton, cm: dict) -> None:
+    """樹冠から垂れ下がった枯れ枝（L2 以降）が、細い針金のように地面まで届いていた。地面から樹高の 8%（最低 1 m）より下は無くす。
+
+    枝垂れの樹冠は、枝先が地面近くまで垂れるのが本来の姿なので対象外。乱数は引かない。
+    """
+    if p.crown_shape == "weeping":
+        return
+    floor = max(DEAD_FLOOR_MIN, DEAD_FLOOR_FRAC * p.height_m)
+    for ax in list(sk.axes):
+        if ax.removed or ax.level < 2 or not ax.dead:
+            continue
+        low = np.nonzero(ax.pos[:, 2] < floor)[0]
+        if len(low) == 0:
+            continue
+        k = int(low[0])
+        if k < 2:
+            sk.remove_subtree(ax.id, cm)
+        else:
+            sk.truncate(ax, k, cm)
+
+
 STUB_PROTRUDE = (0.3, 1.5)      # 幹の表面からスタブが突き出す長さ [m]
 STUB_RADIUS_FRAC = (0.04, 0.12)  # スタブ付け根の半径 / その高さの幹の半径
 STUB_Z_MIN = 1.2                 # これより低い所には付けない（根張りの高さのほうが高ければそちらまで）
@@ -153,5 +178,6 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             else:
                 sk.truncate(ax, kb + 1, cm)
                 ax.broken = True
+    trim_dead_near_ground(p, sk, cm)
     add_trunk_stubs(p, sk, rng)
     sk.compact()
