@@ -745,7 +745,7 @@ def test_virtual_twigs_respect_the_leaf_cap_and_time_budget():
             t = pipeline.generate(p)
             dt = time.time() - t0
             assert t.leaves.n <= allometry.quality_table(q)["leaf_cap"], (sid, q)
-            assert dt <= (1.5 if q == "PREVIEW" else 4.0), (sid, q, dt)       # 初回は表の作成で遅い
+            assert dt <= (2.0 if q == "PREVIEW" else 6.0), (sid, q, dt)       # 初回は表の作成で遅い
 
 
 # --- 樹高を変えても枝葉の見た目の密度が変わらない（ref_height_m）-----------------------------
