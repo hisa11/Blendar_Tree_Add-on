@@ -100,7 +100,7 @@ SHOOT_SPACING = 0.12     # [m] 側枝（葉の房を付ける小さな枝）の�
 SHOOT_LEN_RATIO = 1.1    # 側枝の長さ = 葉 1 房の大きさ × この倍率
 
 
-def _place_shoots(axes, per_m: float, u0: float, rng, frac_scale: float, inst_size: float):
+def _place_shoots(axes, per_m: float, u0: float, rng, frac_scale: float, inst_size: float, surface: bool = False):
     """軸から側枝を出し、その上に葉を置く。位置・接線（側枝の向き）を返す。
 
     軸の線上に葉を並べると、細い枝が葉の鞘に包まれた毛虫になる。本物の枝は小枝が分かれ、その先に葉が付き、小枝の間に隙間がある。
@@ -134,6 +134,9 @@ def _place_shoots(axes, per_m: float, u0: float, rng, frac_scale: float, inst_si
         alpha = np.clip(rng.normal(0.95, 0.25, n_sh), 0.35, 1.4)
         d = normalize(np.cos(alpha)[:, None] * tg + np.sin(alpha)[:, None] * (np.cos(phi)[:, None] * e1 + np.sin(phi)[:, None] * e2))
         ln = shoot_len * rng.uniform(0.7, 1.3, n_sh)
+        if surface and a.radius is not None:               # 太い幹では、側枝を樹皮の表面から出す（幹の中心から出すと樹皮に埋もれる）
+            radial = normalize(d - np.sum(d * tg, axis=1)[:, None] * tg)
+            base = base + radial * (0.9 * np.interp(sa, s, a.radius[:n_use]))[:, None]
         sh = np.repeat(np.arange(n_sh), n_inst)
         w = 0.25 + 0.75 * (np.tile(np.arange(n_inst), n_sh) + rng.random(len(sh))) / n_inst       # 側枝の上の位置（付け根の少し先から先端まで）
         P.append(base[sh] + d[sh] * (ln[sh] * w)[:, None])
@@ -364,16 +367,26 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         forked = {a.parent for a in live if a.level == 0 and a.parent >= 0}       # 先で幹が分かれる幹の上端は、分岐部（頂部ではない）
         tops = [a for a in live if a.level == 0 and not a.dead and a.id not in forked]
         u_top = 0.93 if p.leaf_type == "NEEDLE_FASCICLE" else 0.82                  # マツの針の房は細い枝先だけ。幹の肌には先端のごく手前から
-        s_pts, s_tg = _place(tops, per_m * 1.0, u_top, rng, leaf_frac, theta, 0.25, surface=True)
+        if shoots > 0.0:
+            s_pts, s_tg = _place_shoots(tops, per_m * 1.0 * shoots, u_top, rng, leaf_frac, inst_size, surface=True)
+            if shoots < 1.0:
+                l_pts, l_tg = _place(tops, per_m * 1.0 * (1.0 - shoots), u_top, rng, leaf_frac, theta, 0.25, surface=True)
+                s_pts, s_tg = np.concatenate([s_pts, l_pts]), np.concatenate([s_tg, l_tg])
+        else:
+            s_pts, s_tg = _place(tops, per_m * 1.0, u_top, rng, leaf_frac, theta, 0.25, surface=True)
         above = s_pts[:, 2] >= p.crown_base_ratio * p.height_m          # 幹分かれの下の幹（樹冠より下）には付けない
         extra.append((s_pts[above], s_tg[above]))
         # 梢: 幹の先端の細い部分は、側枝が無いと葉のない棒として樹冠から突き出す。先端に葉の房を足して覆う
-        tip = float(np.clip(0.05 * p.height_m, 0.4, 1.5))
+        tip = float(np.clip(0.07 * p.height_m, 0.5, 2.5))
         for a in tops:
             L = a.length()
             if L < 3.0 * tip:
                 continue
-            t_pts, t_tg = _place([a], max(per_m * 2.0, 60.0 / tip), 1.0 - tip / L, rng, leaf_frac, theta, 0.25)       # 先端 1 本あたり 60 房以上
+            pm_tip = max(per_m * 2.0, 60.0 / tip)                                                                # 先端 1 本あたり 60 房以上
+            if shoots > 0.0:
+                t_pts, t_tg = _place_shoots([a], pm_tip, 1.0 - tip / L, rng, leaf_frac, inst_size)
+            else:
+                t_pts, t_tg = _place([a], pm_tip, 1.0 - tip / L, rng, leaf_frac, theta, 0.25)
             if len(t_pts):
                 e1, e2 = perp_basis(t_tg)
                 phi = rng.uniform(0.0, 2.0 * math.pi, len(t_pts))
