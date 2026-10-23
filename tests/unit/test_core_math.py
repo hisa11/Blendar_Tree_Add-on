@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from tree_forge import schema
+from tree_forge import preset_io, schema
 from tree_forge.core import allometry, envelope, leaf_shapes, util
 
 
@@ -117,3 +117,32 @@ def test_leaf_sources_valid(leaf_type, cluster):
 def test_flower_source_valid():
     v, t, uv = leaf_shapes.flower_source(schema.make_params())
     assert t.max() < len(v) and len(t) == 40
+
+
+def test_ginkgo_leaf_has_a_petiole_and_a_notched_fan_blade():
+    """イチョウの葉: 付け根の細い葉柄、くさび形の付け根から広がる扇形の葉身、外縁の中央の浅い切れ込み（パックマン形ではない）。"""
+    R = 0.08
+    v, t, uv = leaf_shapes.fan(R, 0.5, 11)
+    assert t.min() >= 0 and t.max() < len(v) and len(uv) == len(v)
+    r = np.hypot(v[:, 0], v[:, 1])
+    assert r.max() <= 1.05 * R
+    assert np.ptp(v[r < 0.1 * R][:, 0]) < 0.01 * R                            # 付け根は 1 点（葉柄の先は細い）
+    blade = v[r > 0.8 * R]
+    assert np.ptp(blade[:, 0]) > 1.0 * R                                      # 葉身は幅広の扇形（半角 42° の外縁）
+    outer = v[len(v) - 11:]
+    assert outer[5, 1] < 0.9 * outer[:, 1].max() or r[len(v) - 11 + 5] < 0.95 * r[len(v) - 11:].max()   # 中央が浅く凹む
+    inner = v[1:12]
+    assert np.hypot(inner[:, 0], inner[:, 1]).max() < 0.5 * R                 # 葉身の付け根はくさび形（半径 0.42R）
+
+
+def test_broad_clusters_are_staggered_on_a_stem_except_round_maple_leaves():
+    """サクラ・ケヤキは 1 点から放射状に開くとカエデの掌状葉に見える。軸に沿って左右交互に付ける。幅広の丸い葉（カエデ）は従来の並び。"""
+    n = 4
+    single = len(leaf_shapes.broad(0.1, 0.5, n_rows=5)[1])
+    cherry = schema.make_params(**preset_io.builtin_overrides("someiyoshino"))
+    maple = schema.make_params(**preset_io.builtin_overrides("iroha_momiji"))
+    v, t, _ = leaf_shapes.leaf_source(cherry)
+    assert len(t) == cherry.leaf_cluster * single + 2                         # 葉 + 軸の帯（2 三角形）
+    assert np.ptp(v[:, 1]) > 1.8 * cherry.leaf_length_cm * 0.01              # 軸に沿って間をあけて付く
+    vm, tm, _ = leaf_shapes.leaf_source(maple)
+    assert len(tm) == maple.leaf_cluster * len(leaf_shapes.broad(0.07, 1.0, n_rows=5)[1])

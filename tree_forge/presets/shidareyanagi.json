@@ -47,7 +47,7 @@
     "type": "BROAD",
     "length_cm": 11,
     "width_ratio": 0.12,
-    "per_m": 35,
+    "per_m": 20,
     "cluster": 6,
     "shoots": 0.0,
     "geom": "CUTOUT_MESH",

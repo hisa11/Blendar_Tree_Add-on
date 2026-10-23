@@ -43,7 +43,7 @@ def _strip(widths: np.ndarray, length: float, fold: float, curl: float):
 
 def broad(length: float, width_ratio: float, n_rows: int = 7):
     t = np.linspace(0.0, 1.0, n_rows)
-    w = 0.5 * length * width_ratio * np.sin(np.pi * t ** 0.85) ** 0.9
+    w = 0.5 * length * width_ratio * np.sin(np.pi * t ** 0.75) ** 0.9          # 最大幅は中央よりやや付け根寄り（卵形）
     return _strip(w, length, fold=0.22, curl=0.12)
 
 
@@ -62,13 +62,30 @@ def card(length: float, width_ratio: float):
 
 
 def fan(radius: float, width_ratio: float, n_arc: int = 11):
-    """イチョウ: 扇形（中央に切れ込み）。width_ratio は使わず、半角 70°。"""
-    ang = np.linspace(-math.radians(70), math.radians(70), n_arc)
-    r = radius * (1.0 - 0.28 * np.exp(-((ang / 0.12) ** 2)))
-    verts = [(0.0, 0.0, 0.0)] + [(float(r[i] * math.sin(a)), float(r[i] * math.cos(a)), 0.05 * radius * (1 - math.cos(a)))
-                                  for i, a in enumerate(ang)]
-    uv = [(0.5, 0.0)] + [(0.5 + 0.5 * math.sin(a), 0.5 + 0.5 * math.cos(a)) for a in ang]
-    tris = [(0, i, i + 1) for i in range(1, n_arc)]
+    """イチョウ: 長い葉柄と、くさび形の付け根から広がる扇形（外縁は波打ち、中央に浅い切れ込み）。width_ratio は使わない。
+
+    radius は葉柄の付け根から葉先までの長さ。葉身は半径 0.42〜1.0 の範囲で、付け根側は角度を狭めたくさび形。
+    """
+    r_in = 0.42
+    ang = np.linspace(-math.radians(42), math.radians(42), n_arc)
+    r_out = radius * (1.0 + 0.035 * np.sin(ang * 9.0) - 0.16 * np.exp(-((ang / 0.10) ** 2)))        # 波打つ外縁と中央の浅い切れ込み
+    r_base = radius * r_in
+    verts = [(0.0, 0.0, 0.0)]                                                                          # 葉柄の付け根
+    uv = [(0.5, 0.0)]
+    for k, a in enumerate(ang):                                                                        # 葉身の付け根側（角度を 0.3 倍に狭めた弧）
+        ab = 0.3 * a
+        verts.append((float(r_base * math.sin(ab)), float(r_base * math.cos(ab)), 0.0))
+        uv.append((0.5 + 0.25 * math.sin(ab), 0.25 + 0.0 * k))
+    for a, r in zip(ang, r_out):                                                                       # 外縁
+        verts.append((float(r * math.sin(a)), float(r * math.cos(a)), 0.05 * radius * (1 - math.cos(a))))
+        uv.append((0.5 + 0.5 * math.sin(a), 0.5 + 0.5 * math.cos(a)))
+    lo, hi = 1 + (n_arc - 1) // 2, 1 + n_arc // 2                                                      # 葉柄: 付け根から葉身の付け根の中央へ細く
+    if lo == hi:
+        lo, hi = lo - 1, hi + 1
+    tris = [(0, lo, hi)]
+    inner, outer = 1, 1 + n_arc
+    for i in range(n_arc - 1):
+        tris += [(inner + i, outer + i, outer + i + 1), (inner + i, outer + i + 1, inner + i + 1)]
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
@@ -178,17 +195,36 @@ def _xform(v, yaw, pitch, scale, offset):
     return (v * scale) @ (Rz @ Rx).T + offset
 
 
-def cluster(single, n: int, length: float, rosette: bool = False):
-    """葉 single (verts, tris, uv) を n 枚まとめた「葉つきの小枝」。+Y 方向に伸びる。決定的（乱数は固定シード）。"""
+def _stem(length: float, width: float):
+    """葉つきの小枝の軸（細い帯）。原点から +Y へ length。"""
+    w = 0.5 * width
+    return (np.array([(-w, 0.0, 0.0), (w, 0.0, 0.0), (w, length, 0.0), (-w, length, 0.0)], float),
+            np.array([(0, 1, 2), (0, 2, 3)], np.int32), np.array([(0.5, 0.0), (0.5, 0.0), (0.5, 1.0), (0.5, 1.0)], float))
+
+
+def cluster(single, n: int, length: float, rosette: bool = False, staggered: bool = False):
+    """葉 single (verts, tris, uv) を n 枚まとめた「葉つきの小枝」。+Y 方向に伸びる。決定的（乱数は固定シード）。
+
+    staggered: 細い軸に沿って、左右交互に間をあけて付ける（サクラ・ケヤキなどの互生）。
+    指定なしの互生は、付け根の近くに重ねて開く（葉が幅広のカエデが、掌状に開いた葉に見える）。
+    """
     rng = np.random.default_rng(7)
     v0, t0, u0 = single
     parts = []
+    if staggered:
+        step = 0.5 * length
+        parts.append(_stem(0.1 * length + (n - 1) * step + 0.2 * length, 0.03 * length))
     for i in range(n):
-        if rosette:                                   # 短枝の束生（イチョウ）: 付け根から放射状
+        if staggered:                                 # 軸に沿って左右交互に、前向きに開く
+            side = 1.0 if i % 2 == 0 else -1.0
+            yaw = side * math.radians(rng.uniform(38, 55))
+            off = np.array([0.0, 0.1 * length + i * step, 0.0])
+            sc, pitch = max(0.6, 1.0 - 0.08 * i), math.radians(rng.uniform(-8, 14))
+        elif rosette:                                   # 短枝の束生（イチョウ）: 付け根から放射状
             yaw = (i - (n - 1) / 2.0) * math.radians(150.0 / max(n - 1, 1))
-            off = np.zeros(3)
-            sc, pitch = 1.0 - 0.05 * (i % 2), math.radians(rng.uniform(0, 12))
-        else:                                         # 互生: 左右交互に開きながら先へ進む
+            off = np.array([-math.sin(yaw), math.cos(yaw), 0.0]) * 0.12 * length                              # 付け根を少しずつ放射状にずらして、重なりを減らす
+            sc, pitch = 1.0 - 0.05 * (i % 2), math.radians((1.0 if i % 2 else -1.0) * rng.uniform(2, 6))
+        else:                                         # 互生（付け根の近くに重ねて開く）: 左右交互に開きながら先へ進む
             side = 1.0 if i % 2 == 0 else -1.0
             yaw = side * math.radians(rng.uniform(32, 58))
             off = np.array([side * 0.04 * length, i * 0.36 * length, 0.0])
@@ -206,7 +242,7 @@ def leaf_source(p):
         if t == "FAN":
             return cluster(fan(L, p.leaf_width_ratio, n_arc=7), n, L, rosette=True)
         single = card(L, p.leaf_width_ratio) if p.leaf_geom == "CARD" else broad(L, p.leaf_width_ratio, n_rows=5)
-        return cluster(single, n, L)
+        return cluster(single, n, L, staggered=p.leaf_width_ratio < 0.9)
     if p.leaf_geom == "CARD" and t in ("BROAD", "FAN", "SCALE_TWIG"):
         return card(L, p.leaf_width_ratio)
     if t == "BROAD":

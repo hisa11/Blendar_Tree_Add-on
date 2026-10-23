@@ -45,9 +45,9 @@
   ],
   "leaves": {
     "type": "FAN",
-    "length_cm": 4.5,
-    "per_m": 24,
-    "cluster": 5,
+    "length_cm": 8,
+    "per_m": 28,
+    "cluster": 3,
     "scatter": 0.8,
     "geom": "CUTOUT_MESH",
     "color": [
