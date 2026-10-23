@@ -45,11 +45,11 @@
   ],
   "leaves": {
     "type": "BROAD",
-    "length_cm": 9,
+    "length_cm": 10,
     "width_ratio": 0.5,
     "per_m": 30,
     "cluster": 4,
-    "scale": 1.2,
+    "scale": 1.1,
     "geom": "CUTOUT_MESH",
     "flower_density": 0.8,
     "color": [
