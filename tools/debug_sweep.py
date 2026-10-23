@@ -500,6 +500,14 @@ def write_report(rows, per_species, path: Path, meta: dict):
     path.write_text("\n".join(L), encoding="utf-8")
 
 
+def _manifest_version() -> str:
+    """tree_forge/blender_manifest.toml の version（+stable / +dev は付かない基本のバージョン）。"""
+    for line in (ROOT / "tree_forge" / "blender_manifest.toml").read_text(encoding="utf-8").splitlines():
+        if line.startswith("version"):
+            return line.split("=", 1)[1].strip().strip('"')
+    return "unknown"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--species", default="all")
@@ -521,12 +529,12 @@ def main():
     t0 = time.time()
     rows, per_species = run(species, qualities, use_bpy, progress=lambda s: print(s, flush=True))
     print(f"done in {time.time() - t0:.0f} s")
-    meta = dict(version="0.1.0", date=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+    meta = dict(version=_manifest_version(), date=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                 python=sys.version.split()[0], bpy=bpy_v, qualities=qualities)
     try:
         import subprocess
         sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short=7", "HEAD"], capture_output=True, text=True).stdout.strip()
-        meta["version"] = f"0.1.0 / commit {sha}"
+        meta["version"] = f"{_manifest_version()} / commit {sha}"
     except OSError:
         pass
     if args.json:
