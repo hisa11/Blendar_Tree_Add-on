@@ -266,13 +266,19 @@ def leaf_source(p):
 
 
 def flower_source(p):
-    """花の房: 4輪が小さな球状にまとまる（遠景でも塊として見える）。"""
+    """花の房: 3 輪が短い柄で付け根から外向きに広がる（1 輪ずつ別の向きを向く）。遠景でも塊として見える。"""
     r = 0.011 + 0.0008 * p.leaf_length_cm                    # 花の半径（葉の長さ 10 cm で 1.9 cm = 直径約 4 cm）
     base = flower(r)
     rng = np.random.default_rng(11)
     parts = []
-    for i in range(4):
-        th = 2 * math.pi * i / 4 + rng.uniform(-0.3, 0.3)
-        off = np.array([math.cos(th), math.sin(th), rng.uniform(-0.2, 0.5)]) * r * 1.1
-        parts.append((_xform(base[0], th, rng.uniform(-0.4, 0.4), rng.uniform(0.85, 1.1), off), base[1], base[2]))
+    up = np.array([0.0, 0.0, 1.0])
+    for i in range(3):
+        th = 2 * math.pi * i / 3 + rng.uniform(-0.4, 0.4)
+        pitch = -math.radians(rng.uniform(30.0, 55.0))       # 花の表（+Z）を外向きに傾ける
+        out = np.array([-math.sin(th), math.cos(th), 0.0])
+        off = out * rng.uniform(1.7, 2.1) * r + up * 0.5 * r
+        parts.append((_xform(base[0], th, pitch, rng.uniform(0.85, 1.1), off), base[1], base[2]))
+        side = normalize(np.cross(off, up)) * 0.06 * r         # 柄: 付け根から花の中心まで、細い帯
+        sv = np.array([-side, side, off + side, off - side], float)
+        parts.append((sv, np.array([(0, 1, 2), (0, 2, 3)], np.int32), np.full((4, 2), 0.5)))        # UV を花の中心に置き、柄は濃いピンクの細い線に
     return _merge(parts)

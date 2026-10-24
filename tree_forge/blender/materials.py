@@ -87,6 +87,50 @@ def _plain(name, color, rough=0.7):
     return mat
 
 
+def flower_material(name, color):
+    """花: 花びらの色と、中心（雌しべ・雄しべ）の濃い色を、UV の中心からの距離で混ぜる。インスタンスごとに明暗を少しばらす。"""
+    mat, nt, bsdf, out = _new(name)
+    center = (min(1.0, color[0] * 0.85), color[1] * 0.2, color[2] * 0.38)
+    attr = nt.nodes.new("ShaderNodeAttribute")
+    attr.location = (-700, 300)
+    attr.attribute_type = "INSTANCER"
+    attr.attribute_name = "leaf_var"
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.location = (-450, 300)
+    ramp.color_ramp.elements[0].color = _rgba([c * 0.9 for c in color])
+    ramp.color_ramp.elements[1].color = _rgba([min(1.0, c * 1.08) for c in color])
+    nt.links.new(attr.outputs["Fac"], ramp.inputs["Fac"])
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    tc.location = (-900, -150)
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.location = (-700, -150)
+    mp.inputs["Location"].default_value = (-0.5, -0.5, 0.0)
+    mp.inputs["Scale"].default_value = (2.0, 2.0, 1.0)
+    gr = nt.nodes.new("ShaderNodeTexGradient")
+    gr.location = (-500, -150)
+    gr.gradient_type = "SPHERICAL"                              # UV の中心で 1、半径 0.5 で 0
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.location = (-300, -150)
+    rng.inputs["From Min"].default_value = 0.55
+    rng.inputs["From Max"].default_value = 0.85
+    nt.links.new(tc.outputs["UV"], mp.inputs["Vector"])
+    nt.links.new(mp.outputs["Vector"], gr.inputs["Vector"])
+    nt.links.new(gr.outputs["Fac"], rng.inputs["Value"])
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.location = (-100, 150)
+    mix.data_type = "RGBA"
+    mix.inputs[7].default_value = _rgba(center)                 # B（RGBA 版の入力は 6: A、7: B）
+    nt.links.new(rng.outputs["Result"], mix.inputs[0])
+    nt.links.new(ramp.outputs["Color"], mix.inputs[6])
+    nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.5
+    if compat.has_thin_wall(bsdf):
+        bsdf.inputs["Thin Wall"].default_value = True
+        if "Transmission Weight" in bsdf.inputs:
+            bsdf.inputs["Transmission Weight"].default_value = 0.25
+    return mat
+
+
 def leaf_material(name, color, card_mask=False, translucent=True):
     """葉: インスタンスごとの乱数 leaf_var で明暗をばらす。5.2 以降は Thin Wall、それ以前は Translucent を混ぜる。"""
     mat, nt, bsdf, out = _new(name)
@@ -156,7 +200,7 @@ def default_material(part, ns=None, tree_name="", leaf_color=None):
         return _plain("TF_Fruit", (0.55, 0.05, 0.04), 0.4)
     if part == "flower":
         col = tuple(ns.flower_color) if ns is not None else (0.96, 0.72, 0.80)
-        return leaf_material(f"TF_Flower.{tree_name}" if tree_name else "TF_Flower", col)
+        return flower_material(f"TF_Flower.{tree_name}" if tree_name else "TF_Flower", col)
     if part == "leaf":
         col = leaf_color or (tuple(ns.leaf_color) if ns is not None else (0.10, 0.28, 0.05))
         card = ns is not None and ns.leaf_geom == "CARD"

@@ -107,7 +107,7 @@ PRESETS = [
     sp("someiyoshino", "ソメイヨシノ", "Prunus x yedoensis", 10, 50, 11, "spherical", 0.20, 0.3, 0.1,
        [lv(50, 0.10, 2.0, 1.0, wobble=0.35), lv(55, 0.20, 4.0, 0.50), lv(55, 0.30, 6.5, 0.40)],
        {"type": "BROAD", "length_cm": 10, "width_ratio": 0.5, "per_m": 30, "cluster": 4, "scale": 1.1, "geom": "CUTOUT_MESH", "flower_density": 1.0,
-        "color": GREEN_LIGHT, "autumn_color": [0.78, 0.30, 0.05], "flower_color": [0.97, 0.78, 0.85]},
+        "color": GREEN_LIGHT, "autumn_color": [0.78, 0.30, 0.05], "flower_color": [0.98, 0.70, 0.80]},
        {"type": "smooth_lenticel", "displace_mm": 3, "color": [0.17, 0.13, 0.11], "branch_color": [0.15, 0.11, 0.09]},
        {"height_m": "M:MBG 9-12m", "dbh_cm": "E", "crown_width_m": "M:MBG 9-12m", "growth": "E", "levels": "E",
         "leaves.length_cm": "M:最大12.7cm"},
