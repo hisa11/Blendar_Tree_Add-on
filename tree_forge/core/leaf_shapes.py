@@ -163,43 +163,46 @@ def needle_spray(needle_len: float, n: int):
     return _merge(parts)
 
 
+FLOWER_SLOPE = 0.62        # 花びらの立ち上がり（奥行き 1 あたりの高さ）。tan 32° ほどの、開き目の円錐（カップ状）
+FLOWER_FLAT = 0.90         # 立ち上がった分だけ、平面の半径を縮める（花の直径を保つ）
+
+
 def flower(radius: float):
-    """5弁花（サクラ）。中心が原点、+Z が表。花びら 5 枚は別々の形（付け根が細く、先が広く、先端に浅い切れ込み）で、縁は少し反り上がる。
-    中心には雄しべ（細い線）。UV は花の平面上の位置（中心が (0.5, 0.5)）。
+    """5弁花（サクラ）。中心が原点、+Z が表（開く向き）。花びら 5 枚は別々の形（付け根が細く、先が広く、先端に浅い切れ込み）で、
+    中心から斜めに立ち上がって外へ開く浅い円錐（カップ状）をなし、先端は少し外へ反る。中心には雄しべ（細い線）。
+    UV は花を真上から見た平面上の位置（中心が (0.5, 0.5)）。
     """
     verts, uv, tris = [], [], []
 
-    def add(x, y, z):
+    def add(x, y, z, ux, uy):
         verts.append((x * radius, y * radius, z * radius))
-        uv.append((0.5 + 0.5 * x, 0.5 + 0.5 * y))
+        uv.append((0.5 + 0.5 * ux, 0.5 + 0.5 * uy))
         return len(verts) - 1
 
     # 花びらの輪郭（長さ 1 に対する、(奥行き y, 半幅 w)）。付け根 → 中ほど → 最も広い所 → 先端（両側の丸みと、中央の切れ込み）
     st = ((0.10, 0.04), (0.45, 0.30), (0.72, 0.43), (0.92, 0.40))
     lobe = 0.20
+    rise = lambda y: FLOWER_SLOPE * y - 0.30 * max(y - 0.65, 0.0) ** 1.5      # 立ち上がり、先端は外へ反って寝る
     for i in range(5):
         a = 2 * math.pi * i / 5
         c, s_ = math.cos(a), math.sin(a)
 
-        def pt(y, w, z):                                           # 花びらの座標 (奥行き y, 横 w) → 花の平面
-            return add(c * y - s_ * w, s_ * y + c * w, z)
-        cup = lambda y: 0.10 * y ** 1.6                            # 縁ほど反り上がる
-        b = pt(st[0][0], 0.0, cup(st[0][0]))
-        l1, r1 = pt(st[1][0], -st[1][1], cup(st[1][0])), pt(st[1][0], st[1][1], cup(st[1][0]))
-        l2, r2 = pt(st[2][0], -st[2][1], cup(st[2][0])), pt(st[2][0], st[2][1], cup(st[2][0]))
-        l3, r3 = pt(st[3][0], -st[3][1], cup(st[3][0])), pt(st[3][0], st[3][1], cup(st[3][0]))
-        tl, tr = pt(1.0, -lobe, cup(1.0)), pt(1.0, lobe, cup(1.0))
-        nt = pt(0.88, 0.0, cup(0.88))
+        def pt(y, w):                                              # 花びらの座標 (奥行き y, 横 w) → 花（円錐の面）
+            return add(FLOWER_FLAT * c * y - s_ * w, FLOWER_FLAT * s_ * y + c * w, rise(y), c * y - s_ * w, s_ * y + c * w)
+        b = pt(st[0][0], 0.0)
+        l1, r1 = pt(st[1][0], -st[1][1]), pt(st[1][0], st[1][1])
+        l2, r2 = pt(st[2][0], -st[2][1]), pt(st[2][0], st[2][1])
+        l3, r3 = pt(st[3][0], -st[3][1]), pt(st[3][0], st[3][1])
+        tl, tr = pt(1.0, -lobe), pt(1.0, lobe)
+        nt = pt(0.88, 0.0)
         tris += [(b, l1, r1), (l1, l2, r2), (l1, r2, r1), (l2, l3, r3), (l2, r3, r2), (l3, tl, nt), (l3, nt, r3), (r3, nt, tr)]
-    ctr = add(0.0, 0.0, 0.0)                                       # 雄しべ: 中心から立ち上がる細い線
+    ctr = add(0.0, 0.0, 0.0, 0.0, 0.0)                             # 雄しべ: 中心から立ち上がる細い線
     for i in range(6):
         a = 2 * math.pi * i / 6 + 0.3
-        tilt = math.radians(25 + 12 * (i % 3))
-        tip = add(0.34 * math.sin(tilt) * math.cos(a), 0.34 * math.sin(tilt) * math.sin(a), 0.34 * math.cos(tilt))
-        side = add(0.012 * -math.sin(a), 0.012 * math.cos(a), 0.0)
+        tilt = math.radians(15 + 10 * (i % 3))
+        tip = add(0.36 * math.sin(tilt) * math.cos(a), 0.36 * math.sin(tilt) * math.sin(a), 0.36 * math.cos(tilt), 0.0, 0.0)
+        side = add(0.012 * -math.sin(a), 0.012 * math.cos(a), 0.0, 0.0, 0.0)
         tris.append((ctr, side, tip))
-        uv[side] = uv[tip] = (0.5, 0.5)                            # 雄しべは、中心の濃い色
-    uv[ctr] = (0.5, 0.5)
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 

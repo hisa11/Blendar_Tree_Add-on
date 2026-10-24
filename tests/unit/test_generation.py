@@ -1026,14 +1026,16 @@ def test_flower_clusters_are_spaced_along_the_twigs_not_a_dense_line():
     assert per_m <= 1.5 * leaf_points.FLOWER_PER_M * p.leaves_per_m * p.flower_density, per_m   # 枝 1 m あたりの房の数
 
 
-def test_blossom_has_five_separate_notched_petals_and_a_stamen_centre():
-    """花: 5 枚の花びらは別々の形（隣と少し隙間があり、先端が切れ込む）。"""
+def test_blossom_is_an_open_cup_of_five_separate_notched_petals():
+    """花: 5 枚の花びらは別々の形（隣と少し隙間があり、先端が切れ込む）で、中心から斜めに立ち上がって外へ開く浅い円錐（カップ状）。"""
     r = 0.02
     v, t, uv = leaf_shapes.flower(r)
     assert t.max() < len(v) and len(uv) == len(v)
     pv = v[:50].reshape(5, 10, 3)                                                  # 花びら 1 枚 = 10 頂点（付け根・左右 3 段・左右の先端・切れ込み）
-    rad = lambda q: np.hypot(q[..., 0], q[..., 1]) / r
-    assert (rad(pv[:, 9]) < 0.92).all() and (rad(pv[:, 7]) > 1.0).all() and (rad(pv[:, 8]) > 1.0).all()   # 先端の中央が切れ込む
+    rad = lambda q: np.hypot(q[..., 0], q[..., 1])
+    assert (rad(pv[:, 9]) < 0.92 * rad(pv[:, 7])).all()                            # 先端の中央が切れ込む
     gap = np.linalg.norm(pv[:, 6] - np.roll(pv, -1, axis=0)[:, 5], axis=1) / r      # 隣の花びらの縁どうしの隙間
     assert (gap > 0.05).all()
+    assert pv[:, 4, 2].min() > 0.25 * r                                            # 花びらの中ほどは、中心より高く立ち上がっている（平らな円盤ではない）
+    assert (pv[:, 7, 2] < pv[:, 4, 2] + 0.2 * r).all()                              # 先端は外へ反って寝る
 
