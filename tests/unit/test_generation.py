@@ -1013,3 +1013,22 @@ def test_forked_trunk_has_no_step_at_the_fork(sid):
         r_child = max(float(ring_radii(axis_rings(t, c)[0]).mean(axis=1)[0]) for c in cs)
         assert rp[-1] <= 1.08 * r_child, (sid, rp[-1], r_child)                 # 上端は子の付け根と同じ太さ（段差なし）
         assert rp[-1] < 0.98 * rp[max(0, len(rp) - 8)] or rp[-1] <= r_child     # 手前から滑らかに細くなる
+
+
+def test_flowers_sit_on_short_side_shoots_not_in_lines_along_the_twigs(monkeypatch):
+    """花を枝の線上に並べると、細い枝ごとに白いソーセージ状に連なって毛虫に見えた。葉と同じく側枝の上に数個ずつ付ける。"""
+    from tree_forge.core import leaf_shapes
+    calls = []
+    orig = leaf_points._place_shoots
+
+    def spy(axes, per_m, u0, rng, frac_scale, inst_size, *a, **k):
+        calls.append((len(axes), per_m, inst_size))
+        return orig(axes, per_m, u0, rng, frac_scale, inst_size, *a, **k)
+
+    monkeypatch.setattr(leaf_points, "_place_shoots", spy)
+    t = gen("someiyoshino", quality="PREVIEW", season=0.15, seed=2)
+    assert t.leaves.is_flower.sum() > 1000 and t.leaves.is_leaf.sum() == 0     # 開花期: 花だけ（葉はまだ）
+    flower_size = float(np.ptp(leaf_shapes.flower_source(t.params)[0], axis=0).max())
+    mine = [c for c in calls if abs(c[2] - flower_size) < 1e-9]
+    assert len(mine) == 1 and mine[0][0] > 100
+    assert mine[0][1] <= 3 * t.params.leaves_per_m                              # 枝 1 m あたりの房の数は、線上に並べた従来（葉の密度の 2.4 倍）より少ない
