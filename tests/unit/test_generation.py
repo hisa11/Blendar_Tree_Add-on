@@ -1037,5 +1037,31 @@ def test_blossom_is_an_open_cup_of_five_separate_notched_petals():
     gap = np.linalg.norm(pv[:, 6] - np.roll(pv, -1, axis=0)[:, 5], axis=1) / r      # 隣の花びらの縁どうしの隙間
     assert (gap > 0.05).all()
     assert pv[:, 4, 2].min() > 0.25 * r                                            # 花びらの中ほどは、中心より高く立ち上がっている（平らな円盤ではない）
-    assert (pv[:, 7, 2] < pv[:, 4, 2] + 0.2 * r).all()                              # 先端は外へ反って寝る
+    assert ((pv[:, 7, 2] - pv[:, 4, 2]) < leaf_shapes.FLOWER_SLOPE * 0.28 * r).all()   # 先端は外へ反って寝る（立ち上がりが続くより低い）
+
+
+
+def test_blossom_stalks_are_short():
+    """花と枝をつなぐ柄が長く、棒に見えた。柄は花の半径ほどの長さ（以前は約 2 倍）。"""
+    p = species_params("someiyoshino")
+    v, t, uv = leaf_shapes.flower_source(p)
+    r = 0.011 + 0.0008 * p.leaf_length_cm
+    stalk_ends = np.linalg.norm(v[:, :], axis=1)
+    assert stalk_ends.max() < 3.0 * r                                          # 房全体が、原点から花の半径の 3 倍以内
+    assert len(t) == 3 * (5 * 8 + 6 + 6)
+
+
+def test_blossom_opens_with_the_season():
+    """季節に応じて花びらの開き具合が変わる（つぼみ → 満開の円錐 → 平らに開いて反る）。"""
+    s_bud, s_full, s_late = (leaf_shapes.flower_open_slope(x) for x in (0.08, 0.15, 0.24))
+    assert s_bud > 1.4 > s_full > 0.5 > s_late                                    # 閉じた円錐 > 開き目の円錐 > ほぼ平ら
+    assert s_full == pytest.approx(leaf_shapes.FLOWER_SLOPE)                      # 季節 0.15（満開）は標準の形
+    r = 0.02
+    heights = [np.ptp(leaf_shapes.flower(r, sl)[0][:50, 2]) / r for sl in (s_bud, s_full, s_late)]
+    assert heights[0] > heights[1] > heights[2]                                    # 花びらの立ち上がりの高さ
+    widths = [np.ptp(leaf_shapes.flower(r, sl)[0][:50, 0]) / r for sl in (s_bud, s_full, s_late)]
+    assert widths[0] < widths[1] < widths[2]                                       # 閉じているほど、上から見た幅が狭い
+    a = leaf_shapes.flower_source(species_params("someiyoshino", season=0.08))
+    b = leaf_shapes.flower_source(species_params("someiyoshino", season=0.24))
+    assert a[0].shape == b[0].shape and not np.allclose(a[0], b[0])               # 季節で形が変わる（頂点数は同じ）
 

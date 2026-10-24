@@ -163,11 +163,17 @@ def needle_spray(needle_len: float, n: int):
     return _merge(parts)
 
 
-FLOWER_SLOPE = 0.62        # 花びらの立ち上がり（奥行き 1 あたりの高さ）。tan 32° ほどの、開き目の円錐（カップ状）
-FLOWER_FLAT = 0.90         # 立ち上がった分だけ、平面の半径を縮める（花の直径を保つ）
+FLOWER_SLOPE = 0.85        # 花びらの立ち上がり（奥行き 1 あたりの高さ）。tan 40° ほどの、絞った円錐（カップ状）= 満開の形
+_OPEN_SEASON = (0.0, 0.07, 0.11, 0.15, 0.20, 0.26, 1.0)       # 季節 → 花びらの立ち上がり: つぼみ（ほぼ閉じた円錐）→ 半開き → 満開 → 平らに開いて反る
+_OPEN_SLOPE = (1.9, 1.9, 1.3, FLOWER_SLOPE, 0.40, 0.15, 0.15)
 
 
-def flower(radius: float):
+def flower_open_slope(season: float) -> float:
+    """季節に応じた花びらの立ち上がり（奥行き 1 あたりの高さ）。大きいほど閉じた円錐。"""
+    return float(np.interp(season, _OPEN_SEASON, _OPEN_SLOPE))
+
+
+def flower(radius: float, slope: float = FLOWER_SLOPE):
     """5弁花（サクラ）。中心が原点、+Z が表（開く向き）。花びら 5 枚は別々の形（付け根が細く、先が広く、先端に浅い切れ込み）で、
     中心から斜めに立ち上がって外へ開く浅い円錐（カップ状）をなし、先端は少し外へ反る。中心には雄しべ（細い線）。
     UV は花を真上から見た平面上の位置（中心が (0.5, 0.5)）。
@@ -182,13 +188,15 @@ def flower(radius: float):
     # 花びらの輪郭（長さ 1 に対する、(奥行き y, 半幅 w)）。付け根 → 中ほど → 最も広い所 → 先端（両側の丸みと、中央の切れ込み）
     st = ((0.10, 0.04), (0.45, 0.30), (0.72, 0.43), (0.92, 0.40))
     lobe = 0.20
-    rise = lambda y: FLOWER_SLOPE * y - 0.30 * max(y - 0.65, 0.0) ** 1.5      # 立ち上がり、先端は外へ反って寝る
+    flat = max(1.0 / math.sqrt(1.0 + slope * slope), 0.42)         # 立ち上がった分だけ平面の半径を縮める（花びらの長さを保つ）
+    curl = 0.30 * float(np.clip((1.5 - slope) / 0.65, 0.0, 1.3))   # 先端の反り: 開くほど大きく、つぼみでは無し
+    rise = lambda y: slope * y - curl * max(y - 0.65, 0.0) ** 1.5
     for i in range(5):
         a = 2 * math.pi * i / 5
         c, s_ = math.cos(a), math.sin(a)
 
         def pt(y, w):                                              # 花びらの座標 (奥行き y, 横 w) → 花（円錐の面）
-            return add(FLOWER_FLAT * c * y - s_ * w, FLOWER_FLAT * s_ * y + c * w, rise(y), c * y - s_ * w, s_ * y + c * w)
+            return add(flat * c * y - s_ * w, flat * s_ * y + c * w, rise(y), c * y - s_ * w, s_ * y + c * w)
         b = pt(st[0][0], 0.0)
         l1, r1 = pt(st[1][0], -st[1][1]), pt(st[1][0], st[1][1])
         l2, r2 = pt(st[2][0], -st[2][1]), pt(st[2][0], st[2][1])
@@ -303,7 +311,7 @@ def _stalk(end: np.ndarray, width: float):
 def flower_source(p):
     """花の房: 3 輪が短い柄で付け根から外向きに広がる（1 輪ずつ別の向きを向く）。遠景でも塊として見える。"""
     r = 0.011 + 0.0008 * p.leaf_length_cm                    # 花の半径（葉の長さ 10 cm で 1.9 cm = 直径約 4 cm）
-    base = flower(r)
+    base = flower(r, flower_open_slope(p.season))              # 季節に応じて、つぼみ → 満開の円錐 → 平らに開く
     rng = np.random.default_rng(11)
     parts = []
     up = np.array([0.0, 0.0, 1.0])
@@ -311,7 +319,7 @@ def flower_source(p):
         th = 2 * math.pi * i / 3 + rng.uniform(-0.4, 0.4)
         pitch = -math.radians(rng.uniform(30.0, 55.0))       # 花の表（+Z）を外向きに傾ける
         out = np.array([-math.sin(th), math.cos(th), 0.0])
-        off = out * rng.uniform(1.7, 2.1) * r + up * 0.5 * r
+        off = out * rng.uniform(0.85, 1.05) * r + up * 0.35 * r            # 柄は短く（花の半径ほど）。花が枝に近い
         parts.append((_xform(base[0], th, pitch, rng.uniform(0.85, 1.1), off), base[1], base[2]))
         parts.append(_stalk(off, 0.045 * r))
     return _merge(parts)
