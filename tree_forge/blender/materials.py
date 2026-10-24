@@ -88,41 +88,49 @@ def _plain(name, color, rough=0.7):
 
 
 def flower_material(name, color):
-    """花: 花びらの色と、中心（雌しべ・雄しべ）の濃い色を、UV の中心からの距離で混ぜる。インスタンスごとに明暗を少しばらす。"""
+    """花: 花びらの先は淡く、中心へ向かって濃いピンクに、中心はさらに濃く。UV の中心からの距離で色を変える。インスタンスごとに明暗を少しばらす。"""
     mat, nt, bsdf, out = _new(name)
-    center = (min(1.0, color[0] * 0.85), color[1] * 0.2, color[2] * 0.38)
-    attr = nt.nodes.new("ShaderNodeAttribute")
-    attr.location = (-700, 300)
-    attr.attribute_type = "INSTANCER"
-    attr.attribute_name = "leaf_var"
-    ramp = nt.nodes.new("ShaderNodeValToRGB")
-    ramp.location = (-450, 300)
-    ramp.color_ramp.elements[0].color = _rgba([c * 0.9 for c in color])
-    ramp.color_ramp.elements[1].color = _rgba([min(1.0, c * 1.08) for c in color])
-    nt.links.new(attr.outputs["Fac"], ramp.inputs["Fac"])
+    white = (1.0, 1.0, 1.0)
+    stops = (
+        (0.0, [color[i] * 0.45 + white[i] * 0.55 for i in range(3)]),         # 花びらの縁: 淡い
+        (0.35, list(color)),                                                  # 花びら
+        (0.68, [color[0] * 0.97, color[1] * 0.58, color[2] * 0.72]),          # 付け根: 濃いピンク
+        (0.86, [color[0] * 0.80, color[1] * 0.12, color[2] * 0.28]),          # 中心（雄しべ・雌しべ）
+    )
     tc = nt.nodes.new("ShaderNodeTexCoord")
-    tc.location = (-900, -150)
+    tc.location = (-1100, 0)
     mp = nt.nodes.new("ShaderNodeMapping")
-    mp.location = (-700, -150)
-    mp.inputs["Location"].default_value = (-0.5, -0.5, 0.0)
+    mp.location = (-900, 0)
+    mp.inputs["Location"].default_value = (-1.0, -1.0, 0.0)          # マッピングは「拡大してから移動」なので、(uv - 0.5) * 2 にするには -1
     mp.inputs["Scale"].default_value = (2.0, 2.0, 1.0)
     gr = nt.nodes.new("ShaderNodeTexGradient")
-    gr.location = (-500, -150)
-    gr.gradient_type = "SPHERICAL"                              # UV の中心で 1、半径 0.5 で 0
-    rng = nt.nodes.new("ShaderNodeMapRange")
-    rng.location = (-300, -150)
-    rng.inputs["From Min"].default_value = 0.55
-    rng.inputs["From Max"].default_value = 0.85
+    gr.location = (-700, 0)
+    gr.gradient_type = "SPHERICAL"                              # UV の中心で 1、花の縁で 0
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.location = (-500, 0)
+    ce = ramp.color_ramp.elements
+    ce[0].position, ce[0].color = stops[0][0], _rgba(stops[0][1])
+    ce[1].position, ce[1].color = stops[1][0], _rgba(stops[1][1])
+    for pos, col in stops[2:]:
+        e = ce.new(pos)
+        e.color = _rgba(col)
     nt.links.new(tc.outputs["UV"], mp.inputs["Vector"])
     nt.links.new(mp.outputs["Vector"], gr.inputs["Vector"])
-    nt.links.new(gr.outputs["Fac"], rng.inputs["Value"])
-    mix = nt.nodes.new("ShaderNodeMix")
-    mix.location = (-100, 150)
-    mix.data_type = "RGBA"
-    mix.inputs[7].default_value = _rgba(center)                 # B（RGBA 版の入力は 6: A、7: B）
-    nt.links.new(rng.outputs["Result"], mix.inputs[0])
-    nt.links.new(ramp.outputs["Color"], mix.inputs[6])
-    nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    nt.links.new(gr.outputs["Fac"], ramp.inputs["Fac"])
+    attr = nt.nodes.new("ShaderNodeAttribute")                  # 房ごとの明暗（0.9〜1.1 倍）
+    attr.location = (-700, -300)
+    attr.attribute_type = "INSTANCER"
+    attr.attribute_name = "leaf_var"
+    rng = nt.nodes.new("ShaderNodeMapRange")
+    rng.location = (-500, -300)
+    rng.inputs["To Min"].default_value = 0.9
+    rng.inputs["To Max"].default_value = 1.1
+    nt.links.new(attr.outputs["Fac"], rng.inputs["Value"])
+    hsv = nt.nodes.new("ShaderNodeHueSaturation")
+    hsv.location = (-250, 0)
+    nt.links.new(ramp.outputs["Color"], hsv.inputs["Color"])
+    nt.links.new(rng.outputs["Result"], hsv.inputs["Value"])
+    nt.links.new(hsv.outputs["Color"], bsdf.inputs["Base Color"])
     bsdf.inputs["Roughness"].default_value = 0.5
     if compat.has_thin_wall(bsdf):
         bsdf.inputs["Thin Wall"].default_value = True
@@ -150,7 +158,7 @@ def leaf_material(name, color, card_mask=False, translucent=True):
         tc.location = (-700, -250)
         mp = nt.nodes.new("ShaderNodeMapping")
         mp.location = (-500, -250)
-        mp.inputs["Location"].default_value = (-0.5, -0.5, 0.0)
+        mp.inputs["Location"].default_value = (-1.0, -1.0, 0.0)          # マッピングは「拡大してから移動」なので、(uv - 0.5) * 2 にするには -1
         mp.inputs["Scale"].default_value = (2.0, 2.0, 1.0)
         gr = nt.nodes.new("ShaderNodeTexGradient")
         gr.location = (-300, -250)

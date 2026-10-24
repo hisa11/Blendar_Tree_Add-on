@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from tree_forge import schema
-from tree_forge.core import allometry, damage, envelope, leaf_points, pipeline, radius, rng, skeleton, tube_mesher
+from tree_forge.core import allometry, damage, envelope, leaf_points, leaf_shapes, pipeline, radius, rng, skeleton, tube_mesher
 
 from tests.unit.helpers import axis_rings, gen, mesh_hash, ring_radii, species_params
 
@@ -1015,20 +1015,25 @@ def test_forked_trunk_has_no_step_at_the_fork(sid):
         assert rp[-1] < 0.98 * rp[max(0, len(rp) - 8)] or rp[-1] <= r_child     # 手前から滑らかに細くなる
 
 
-def test_flowers_sit_on_short_side_shoots_not_in_lines_along_the_twigs(monkeypatch):
-    """花を枝の線上に並べると、細い枝ごとに白いソーセージ状に連なって毛虫に見えた。葉と同じく側枝の上に数個ずつ付ける。"""
-    from tree_forge.core import leaf_shapes
-    calls = []
-    orig = leaf_points._place_shoots
-
-    def spy(axes, per_m, u0, rng, frac_scale, inst_size, *a, **k):
-        calls.append((len(axes), per_m, inst_size))
-        return orig(axes, per_m, u0, rng, frac_scale, inst_size, *a, **k)
-
-    monkeypatch.setattr(leaf_points, "_place_shoots", spy)
+def test_flower_clusters_are_spaced_along_the_twigs_not_a_dense_line():
+    """花を枝の線上にびっしり並べると、細い枝ごとに白いソーセージ状に連なって毛虫に見えた。房（3 輪）を枝 1 m あたり少数にして、間に枝が見える。"""
     t = gen("someiyoshino", quality="PREVIEW", season=0.15, seed=2)
+    p = t.params
     assert t.leaves.is_flower.sum() > 1000 and t.leaves.is_leaf.sum() == 0     # 開花期: 花だけ（葉はまだ）
-    flower_size = float(np.ptp(leaf_shapes.flower_source(t.params)[0], axis=0).max())
-    mine = [c for c in calls if abs(c[2] - flower_size) < 1e-9]
-    assert len(mine) == 1 and mine[0][0] > 100
-    assert mine[0][1] <= 3 * t.params.leaves_per_m                              # 枝 1 m あたりの房の数は、線上に並べた従来（葉の密度の 2.4 倍）より少ない
+    axes = [a for a in t.skeleton.axes if a.level >= 2 and not a.dead]
+    total_len = sum(a.length() for a in axes)
+    per_m = t.leaves.is_flower.sum() / total_len
+    assert per_m <= 1.5 * leaf_points.FLOWER_PER_M * p.leaves_per_m * p.flower_density, per_m   # 枝 1 m あたりの房の数
+
+
+def test_blossom_has_five_separate_notched_petals_and_a_stamen_centre():
+    """花: 5 枚の花びらは別々の形（隣と少し隙間があり、先端が切れ込む）。"""
+    r = 0.02
+    v, t, uv = leaf_shapes.flower(r)
+    assert t.max() < len(v) and len(uv) == len(v)
+    pv = v[:50].reshape(5, 10, 3)                                                  # 花びら 1 枚 = 10 頂点（付け根・左右 3 段・左右の先端・切れ込み）
+    rad = lambda q: np.hypot(q[..., 0], q[..., 1]) / r
+    assert (rad(pv[:, 9]) < 0.92).all() and (rad(pv[:, 7]) > 1.0).all() and (rad(pv[:, 8]) > 1.0).all()   # 先端の中央が切れ込む
+    gap = np.linalg.norm(pv[:, 6] - np.roll(pv, -1, axis=0)[:, 5], axis=1) / r      # 隣の花びらの縁どうしの隙間
+    assert (gap > 0.05).all()
+

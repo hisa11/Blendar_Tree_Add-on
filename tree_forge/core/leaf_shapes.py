@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 
-from .util import normalize
+from .util import normalize, perp_basis
 
 
 def _strip(widths: np.ndarray, length: float, fold: float, curl: float):
@@ -164,24 +164,42 @@ def needle_spray(needle_len: float, n: int):
 
 
 def flower(radius: float):
-    """5弁花（サクラ）。中心が原点、+Z が表。花びらは丸みのある倒卵形で、先端に浅い切れ込みがある。
-
-    隣の花びらと少し重なる（1 枚あたり 76°）。重なる所は z をずらして面が重ならないようにする。
+    """5弁花（サクラ）。中心が原点、+Z が表。花びら 5 枚は別々の形（付け根が細く、先が広く、先端に浅い切れ込み）で、縁は少し反り上がる。
+    中心には雄しべ（細い線）。UV は花の平面上の位置（中心が (0.5, 0.5)）。
     """
-    prof = ((-1.0, 0.93), (-0.6, 1.0), (-0.25, 0.95), (0.0, 0.80), (0.25, 0.95), (0.6, 1.0), (1.0, 0.93))   # (花びらの中心からの角度の割合, 半径)。先端は深く、花びらの境は浅く凹む
-    half = 0.66                                                                          # 花びらの半角 [rad]
-    verts = [(0.0, 0.0, 0.0)]
-    uv = [(0.5, 0.5)]
-    tris = []
+    verts, uv, tris = [], [], []
+
+    def add(x, y, z):
+        verts.append((x * radius, y * radius, z * radius))
+        uv.append((0.5 + 0.5 * x, 0.5 + 0.5 * y))
+        return len(verts) - 1
+
+    # 花びらの輪郭（長さ 1 に対する、(奥行き y, 半幅 w)）。付け根 → 中ほど → 最も広い所 → 先端（両側の丸みと、中央の切れ込み）
+    st = ((0.10, 0.04), (0.45, 0.30), (0.72, 0.43), (0.92, 0.40))
+    lobe = 0.20
     for i in range(5):
-        th = 2 * math.pi * i / 5
-        zo = 0.012 * radius * (i % 2)
-        b = len(verts)
-        for u, rr in prof:
-            a = th + u * half
-            verts.append((radius * rr * math.cos(a), radius * rr * math.sin(a), radius * (0.10 * rr * rr) + zo))
-            uv.append((0.5 + 0.5 * rr * math.cos(a), 0.5 + 0.5 * rr * math.sin(a)))
-        tris += [(0, b + k, b + k + 1) for k in range(len(prof) - 1)]
+        a = 2 * math.pi * i / 5
+        c, s_ = math.cos(a), math.sin(a)
+
+        def pt(y, w, z):                                           # 花びらの座標 (奥行き y, 横 w) → 花の平面
+            return add(c * y - s_ * w, s_ * y + c * w, z)
+        cup = lambda y: 0.10 * y ** 1.6                            # 縁ほど反り上がる
+        b = pt(st[0][0], 0.0, cup(st[0][0]))
+        l1, r1 = pt(st[1][0], -st[1][1], cup(st[1][0])), pt(st[1][0], st[1][1], cup(st[1][0]))
+        l2, r2 = pt(st[2][0], -st[2][1], cup(st[2][0])), pt(st[2][0], st[2][1], cup(st[2][0]))
+        l3, r3 = pt(st[3][0], -st[3][1], cup(st[3][0])), pt(st[3][0], st[3][1], cup(st[3][0]))
+        tl, tr = pt(1.0, -lobe, cup(1.0)), pt(1.0, lobe, cup(1.0))
+        nt = pt(0.88, 0.0, cup(0.88))
+        tris += [(b, l1, r1), (l1, l2, r2), (l1, r2, r1), (l2, l3, r3), (l2, r3, r2), (l3, tl, nt), (l3, nt, r3), (r3, nt, tr)]
+    ctr = add(0.0, 0.0, 0.0)                                       # 雄しべ: 中心から立ち上がる細い線
+    for i in range(6):
+        a = 2 * math.pi * i / 6 + 0.3
+        tilt = math.radians(25 + 12 * (i % 3))
+        tip = add(0.34 * math.sin(tilt) * math.cos(a), 0.34 * math.sin(tilt) * math.sin(a), 0.34 * math.cos(tilt))
+        side = add(0.012 * -math.sin(a), 0.012 * math.cos(a), 0.0)
+        tris.append((ctr, side, tip))
+        uv[side] = uv[tip] = (0.5, 0.5)                            # 雄しべは、中心の濃い色
+    uv[ctr] = (0.5, 0.5)
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
@@ -265,6 +283,20 @@ def leaf_source(p):
     raise ValueError(t)
 
 
+def _stalk(end: np.ndarray, width: float):
+    """柄: 原点から end まで、細い三角柱（どの向きから見ても細い棒に見える）。UV は花びらの色の位置。"""
+    t = normalize(end)
+    e1, e2 = perp_basis(t[None, :])
+    e1, e2 = e1[0], e2[0]
+    ring = [(math.cos(a) * e1 + math.sin(a) * e2) * width for a in (0.0, 2.094395, 4.18879)]
+    verts = np.array(ring + [end + r for r in ring], float)
+    tris = []
+    for k in range(3):
+        k1 = (k + 1) % 3
+        tris += [(k, k1, 3 + k1), (k, 3 + k1, 3 + k)]
+    return verts, np.array(tris, np.int32), np.tile([0.75, 0.5], (6, 1))
+
+
 def flower_source(p):
     """花の房: 3 輪が短い柄で付け根から外向きに広がる（1 輪ずつ別の向きを向く）。遠景でも塊として見える。"""
     r = 0.011 + 0.0008 * p.leaf_length_cm                    # 花の半径（葉の長さ 10 cm で 1.9 cm = 直径約 4 cm）
@@ -278,7 +310,5 @@ def flower_source(p):
         out = np.array([-math.sin(th), math.cos(th), 0.0])
         off = out * rng.uniform(1.7, 2.1) * r + up * 0.5 * r
         parts.append((_xform(base[0], th, pitch, rng.uniform(0.85, 1.1), off), base[1], base[2]))
-        side = normalize(np.cross(off, up)) * 0.06 * r         # 柄: 付け根から花の中心まで、細い帯
-        sv = np.array([-side, side, off + side, off - side], float)
-        parts.append((sv, np.array([(0, 1, 2), (0, 2, 3)], np.int32), np.full((4, 2), 0.5)))        # UV を花の中心に置き、柄は濃いピンクの細い線に
+        parts.append(_stalk(off, 0.045 * r))
     return _merge(parts)

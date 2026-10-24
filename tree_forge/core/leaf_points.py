@@ -330,7 +330,7 @@ def virtual_twig_points(p, sk: Skeleton, rng, per_m: float, start: float, leaf_f
     return pt[inside], tg[inside]
 
 
-FLOWER_PER_M = 1.2      # 花の房の数 / 枝 1 m（葉の密度 × この倍率 × 花の密度）。側枝 1 本あたり数個ずつ付く
+FLOWER_PER_M = 0.7      # 花の房の数 / 枝 1 m（葉の密度 × この倍率 × 花の密度）。1 房 = 3 輪
 CORE_FRAC = 0.5          # 針葉樹の幹まわりの芯: 樹冠の半径に対する幅
 CORE_TARGET = 2.0        # 芯の葉の密度を、樹冠全体の平均密度のこの割合まで満たす
 CORE_MAX = 0.8          # 足す葉の数の上限（既にある葉の数に対する割合）
@@ -511,17 +511,16 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 花（L2 以降の細い軸に）---
     if flower_frac > 0.01 and p.flower_density > 0.0:
         f_axes = [a for a in sk.axes if not a.removed and not a.dead and a.level >= 2]
-        # 花を枝の線上に並べると、細い枝ごとに白いソーセージ状に連なる（毛虫）。葉と同じく、短い側枝を出して、その上に数個ずつ付ける
-        inst_f = float(np.ptp(leaf_shapes.flower_source(p)[0], axis=0).max())
-        pts, tg = _place_shoots(f_axes, p.leaves_per_m * FLOWER_PER_M * p.flower_density * allometry.size_ratio(p), 0.15, rng,
-                                flower_frac, inst_f)
+        # 花の房は、枝の上に間をあけて付ける（1 m あたり FLOWER_PER_M × 葉の密度）。房ごとに枝のまわりの向きをばらす。
+        # 側枝の上に置くと、近くで見たとき枝から浮いて見えるので、柄（房の形状に含む）で枝に付ける
+        pts, tg = _place(f_axes, p.leaves_per_m * FLOWER_PER_M * p.flower_density * allometry.size_ratio(p), 0.15, rng, flower_frac, 0.8, 0.3)
         n = len(pts)
         if n > cap // 2:
             keep = np.sort(rng.choice(n, cap // 2, replace=False))
             pts, tg = pts[keep], tg[keep]
             n = len(pts)
         if n:
-            fwd, hint, radial = _orient(tg, rng, 0.9, 0.3, 0.6)
+            fwd, hint, radial = _orient(tg, rng, 0.9, 0.3, 0.6, roll_sd=3.0)
             hint = normalize(radial + np.array([0.0, 0.0, 0.5]))
             R = frame_matrices(fwd, hint)
             sc = (1.0 + rng.uniform(-0.2, 0.2, n)) * p.leaf_scale
