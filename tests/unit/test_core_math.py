@@ -116,7 +116,7 @@ def test_leaf_sources_valid(leaf_type, cluster):
 
 def test_flower_source_valid():
     v, t, uv = leaf_shapes.flower_source(schema.make_params())
-    assert t.max() < len(v) and len(t) == 40
+    assert t.max() < len(v) and len(t) == 4 * 5 * 6                       # 4 輪 × 5 弁 × 6 三角形（丸い花びら）
 
 
 def test_ginkgo_leaf_has_a_petiole_and_a_notched_fan_blade():

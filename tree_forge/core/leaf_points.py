@@ -510,7 +510,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
     # --- 花（L2 以降の細い軸に）---
     if flower_frac > 0.01 and p.flower_density > 0.0:
         f_axes = [a for a in sk.axes if not a.removed and not a.dead and a.level >= 2]
-        pts, tg = _place(f_axes, p.leaves_per_m * 1.2 * p.flower_density * allometry.size_ratio(p), 0.15, rng, flower_frac, 0.8, 0.3)
+        pts, tg = _place(f_axes, p.leaves_per_m * 2.4 * p.flower_density * allometry.size_ratio(p), 0.15, rng, flower_frac, 0.8, 0.3)
         n = len(pts)
         if n > cap // 2:
             keep = np.sort(rng.choice(n, cap // 2, replace=False))

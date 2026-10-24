@@ -51,7 +51,7 @@
     "cluster": 4,
     "scale": 1.1,
     "geom": "CUTOUT_MESH",
-    "flower_density": 0.8,
+    "flower_density": 1.0,
     "color": [
       0.16,
       0.36,

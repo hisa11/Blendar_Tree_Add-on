@@ -993,3 +993,19 @@ def test_weeping_willow_keeps_its_low_hanging_twigs():
     t = gen("shidareyanagi", quality="MEDIUM", seed=3, dead_branch_ratio=0.5)
     low = [a for a in t.skeleton.axes if a.level >= 2 and float(a.pos[:, 2].min()) < 0.08 * t.params.height_m]
     assert low                                                                # 枝垂れは暖簾が地面近くまで届く（対象外）
+
+
+@pytest.mark.parametrize("sid", ["keyaki", "iroha_momiji", "someiyoshino"])
+def test_forked_trunk_has_no_step_at_the_fork(sid):
+    """幹が分かれる所で、親の幹の平らな上端と、細い子の幹とのあいだに段差ができていた。親の幹の上端は、子の付け根の太さまで滑らかに細くなる。"""
+    t = gen(sid, quality="MEDIUM", seed=3)
+    kids = {}
+    for a in t.skeleton.axes:
+        if a.level == 0 and a.parent >= 0:
+            kids.setdefault(a.parent, []).append(a.id)
+    assert kids
+    for par, cs in kids.items():
+        rp = ring_radii(axis_rings(t, par)[0]).mean(axis=1)
+        r_child = max(float(ring_radii(axis_rings(t, c)[0]).mean(axis=1)[0]) for c in cs)
+        assert rp[-1] <= 1.08 * r_child, (sid, rp[-1], r_child)                 # 上端は子の付け根と同じ太さ（段差なし）
+        assert rp[-1] < 0.98 * rp[max(0, len(rp) - 8)] or rp[-1] <= r_child     # 手前から滑らかに細くなる

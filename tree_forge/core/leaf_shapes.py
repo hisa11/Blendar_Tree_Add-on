@@ -164,17 +164,24 @@ def needle_spray(needle_len: float, n: int):
 
 
 def flower(radius: float):
-    """5弁花。中心が原点、+Z が表。"""
+    """5弁花（サクラ）。中心が原点、+Z が表。花びらは丸みのある倒卵形で、先端に浅い切れ込みがある。
+
+    隣の花びらと少し重なる（1 枚あたり 76°）。重なる所は z をずらして面が重ならないようにする。
+    """
+    prof = ((-1.0, 0.93), (-0.6, 1.0), (-0.25, 0.95), (0.0, 0.80), (0.25, 0.95), (0.6, 1.0), (1.0, 0.93))   # (花びらの中心からの角度の割合, 半径)。先端は深く、花びらの境は浅く凹む
+    half = 0.66                                                                          # 花びらの半角 [rad]
     verts = [(0.0, 0.0, 0.0)]
     uv = [(0.5, 0.5)]
     tris = []
     for i in range(5):
         th = 2 * math.pi * i / 5
-        for a, rr, zz in ((th - 0.5, 0.55, 0.05), (th, 1.0, 0.18), (th + 0.5, 0.55, 0.05)):
-            verts.append((radius * rr * math.cos(a), radius * rr * math.sin(a), radius * zz))
+        zo = 0.012 * radius * (i % 2)
+        b = len(verts)
+        for u, rr in prof:
+            a = th + u * half
+            verts.append((radius * rr * math.cos(a), radius * rr * math.sin(a), radius * (0.10 * rr * rr) + zo))
             uv.append((0.5 + 0.5 * rr * math.cos(a), 0.5 + 0.5 * rr * math.sin(a)))
-        b = 1 + 3 * i
-        tris += [(0, b, b + 1), (0, b + 1, b + 2)]
+        tris += [(0, b + k, b + k + 1) for k in range(len(prof) - 1)]
     return np.array(verts, float), np.array(tris, np.int32), np.array(uv, float)
 
 
@@ -260,7 +267,7 @@ def leaf_source(p):
 
 def flower_source(p):
     """花の房: 4輪が小さな球状にまとまる（遠景でも塊として見える）。"""
-    r = 0.015 + 0.002 * p.leaf_length_cm
+    r = 0.011 + 0.0008 * p.leaf_length_cm                    # 花の半径（葉の長さ 10 cm で 1.9 cm = 直径約 4 cm）
     base = flower(r)
     rng = np.random.default_rng(11)
     parts = []

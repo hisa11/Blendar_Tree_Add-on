@@ -1,12 +1,12 @@
 """拡張機能の zip を作る（blender --command extension build の代わりに使える、標準ライブラリだけの簡易版）。
 
-    python tools/build_zip.py            # 開発版: dist/tree_forge-0.1.1+dev.<コミット数>.<コミット>.zip
-    python tools/build_zip.py --release  # リリース版: dist/tree_forge-0.1.1+stable.zip（未コミットの変更があると作らない）
+    python tools/build_zip.py            # 開発版: dist/tree_forge-0.1.3+dev.<コミット数>.<コミット>.zip
+    python tools/build_zip.py --release  # リリース版: dist/tree_forge-0.1.3+stable.zip（未コミットの変更があると作らない）
 
 どのビルドか分かるよう、zip の中の blender_manifest.toml のバージョンに、semver の「ビルドメタデータ」を付ける。
-  開発版（デバッグ中）: +dev.<git のコミット数>.<短いコミット ID>（例: 0.1.1+dev.93.d4453be）。未コミットの変更があれば末尾に .dirty。
-  リリース版（安定版）: +stable（Ubuntu の LTS のような印。例: 0.1.1+stable）。
-リポジトリの blender_manifest.toml は 0.1.1 のまま（ビルドのたびに書き換えない）。
+  開発版（デバッグ中）: +dev.<git のコミット数>.<短いコミット ID>（例: 0.1.3+dev.93.d4453be）。未コミットの変更があれば末尾に .dirty。
+  リリース版（安定版）: +stable（Ubuntu の LTS のような印。例: 0.1.3+stable）。
+リポジトリの blender_manifest.toml は 0.1.3 のまま（ビルドのたびに書き換えない）。
 同じ内容を build_info.json にも入れ、アドオンのパネルの下端に表示する（Blender の拡張機能一覧の表示と照らし合わせられる）。
 
 正式な検証・ビルドは Blender 本体で:
@@ -38,7 +38,7 @@ def _git(*args: str) -> str:
 
 
 def make_version(base: str, count: str, sha: str, dirty: bool, release: bool = False) -> str:
-    """0.1.1 → 開発版 0.1.1+dev.93.d4453be / リリース版 0.1.1+stable（semver のビルドメタデータ。Blender の検証を通る形）。"""
+    """0.1.3 → 開発版 0.1.3+dev.93.d4453be / リリース版 0.1.3+stable（semver のビルドメタデータ。Blender の検証を通る形）。"""
     if release:
         return f"{base}+{RELEASE_TAG}"
     return f"{base}+dev.{count}.{sha}" + (".dirty" if dirty else "")
