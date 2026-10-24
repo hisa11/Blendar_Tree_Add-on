@@ -190,27 +190,27 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
     out0 = _horizontal(d0, np.array([[1.0, 0.0, 0.0]]))
     pos = grow(np.zeros((1, 3)), d0, np.array([length]), nseg, rng, up_pull=np.array([1.2]), droop=zeros,
                wobble=np.array([wob]), kink=zeros, photo=zeros, out_dir=out0)[0]
-    trunk = sk.add(0, -1, 0, pos, out0[0], phase=rng.random())
     if not split:
+        sk.add(0, -1, 0, pos, out0[0], phase=rng.random())
         return
 
-    # 幹分かれ: 1 点で一気に n 本に分かれると、平らな上端と細い子の幹とのあいだに段差ができる。
-    # 実物は、太い幹から少し細い幹がいろいろな向きに、少しずつ違う高さで出ていき、残った幹も先へ行くほど細くなる。
-    # 幹が側枝（太い幹）を 1 本出し、残りの幹が少し上でまた 1 本出す、を繰り返す（最後の残りの幹が n 本目）。
-    # 1 回の分岐で減る太さが小さくなり、レオナルド則（各分岐点の子の断面積の和 = 親）はそのまま成り立つ。
+    # 幹分かれ: 主幹は 1 本の連続した筒のまま先まで伸びる。そこから、少し細い幹（側枝）が、いろいろな向きに、
+    # 少しずつ違う高さで出ていく（通常の枝と同じ付き方）。出るたびに主幹はレオナルド則で細くなるので、
+    # 1 回の分岐で減る太さは小さく、親と子を別々の筒でつなぐ継ぎ目（段差・縁）ができない。
     n = p.trunk_split_count
     base_tilt = {"vase": 30.0, "spherical": 24.0, "ovoid": 20.0, "umbrella": 34.0, "weeping": 26.0,
                  "irregular": 26.0, "columnar": 12.0, "conical": 14.0}[p.crown_shape]
     az = rng.uniform(0, 2 * math.pi)
     dz = float(np.clip(SPLIT_STEP * H, 0.4, 3.0))                      # 次の分岐までの高さ
-    cur = trunk
+    stem = pos
+    sides = []                                                         # (分岐の節の番号, 側枝の節, 向き)
     for j in range(n - 1):
-        start = cur.pos[-1]
-        t_cur = normalize(cur.pos[-1] - cur.pos[-2])
+        start = stem[-1]
+        t_cur = normalize(stem[-1] - stem[-2])
         e1, e2 = perp_basis(t_cur)
         az += 2.399963 + rng.normal(0.0, 0.25)                         # 黄金角ずつ回して、いろいろな向きに出す
         tilt_s = math.radians(base_tilt * rng.uniform(0.9, 1.4))       # 出ていく幹
-        tilt_c = math.radians(base_tilt * rng.uniform(0.25, 0.5))      # 残る幹は、出ていく幹と反対へ少し傾く
+        tilt_c = math.radians(base_tilt * rng.uniform(0.25, 0.5))      # 主幹は、出ていく幹と反対へ少し傾く
         a_s = np.cos(az) * e1 + np.sin(az) * e2
         d_s = np.cos(tilt_s) * t_cur + np.sin(tilt_s) * a_s
         d_c = np.cos(tilt_c) * t_cur - np.sin(tilt_c) * a_s
@@ -224,8 +224,11 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
         pos_l = grow(np.repeat(start[None], 2, 0), dirs, lens, nseg_l, rng, up_pull=np.full(2, 0.9), droop=np.zeros(2),
                      wobble=np.full(2, 0.25 * (0.7 + 0.3 * age)), kink=np.full(2, (1 - p.apical_dominance) * 0.15),
                      photo=np.zeros(2), out_dir=outs)
-        side = sk.add(0, cur.id, cur.n - 1, pos_l[0], outs[0], phase=rng.random())
-        cur = sk.add(0, cur.id, cur.n - 1, pos_l[1], outs[1], phase=rng.random())
+        sides.append((len(stem) - 1, pos_l[0], outs[0]))
+        stem = np.vstack([stem, pos_l[1][1:]])                         # 主幹は分岐の節から、そのまま上へ続く
+    trunk = sk.add(0, -1, 0, stem, out0[0], phase=rng.random())
+    for node, pos_s, out_s in sides:
+        sk.add(0, trunk.id, node, pos_s, out_s, phase=rng.random())
 
 
 # --------------------------------------------------------------------------------------

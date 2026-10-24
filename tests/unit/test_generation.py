@@ -73,19 +73,21 @@ def test_determinism_and_stream_independence():
 # --- レオナルドの規則 ---------------------------------------------------------
 @pytest.mark.parametrize("delta", [1.8, 2.0, 2.5, 3.0])
 def test_leonardo_at_trunk_fork(delta):
-    """幹分かれ: 各分岐点で、分かれる前の幹の d^Δ = 分かれた幹の d^Δ の和（誤差 1% 以内）。"""
+    """幹分かれ: 主幹は 1 本の連続した筒で、側枝が出る節ごとに、出た後の主幹と側枝の d^Δ の和は、出る前の主幹の d^Δ を超えない（レオナルド則）。"""
     p = species_params("keyaki", quality="PREVIEW", leonardo_exponent=delta, trunk_split_count=3)
     t = pipeline.generate(p)
     axes = t.skeleton.axes
-    forks = {}
-    for a in axes:
-        if a.level == 0 and a.parent >= 0:
-            forks.setdefault((a.parent, a.parent_node), []).append(a)
-    assert len(forks) == 2 and all(len(v) == 2 for v in forks.values())          # 3 本に分かれるなら、2 回の分岐（順に細い幹が出ていく）
-    for (par, node), kids in forks.items():
-        lhs = axes[par].radius[node] ** delta
-        rhs = sum(a.radius[0] ** delta for a in kids)
-        assert rhs == pytest.approx(lhs, rel=0.01), (par, node)
+    stem = axes[0]
+    limbs = [a for a in axes if a.level == 0 and a.parent == 0]
+    assert len(limbs) == 2                                                       # 3 本に分かれるなら、主幹 + 側枝 2 本
+    nodes = sorted(a.parent_node for a in limbs)
+    assert nodes[1] - nodes[0] >= 10
+    for a in limbs:
+        k = a.parent_node
+        before, after = stem.radius[k - 4], stem.radius[k + 5]                   # 太さを均す区間（前後 1.5 r）の外側
+        assert after < before
+        area = after ** delta + a.radius[0] ** delta                              # この区間では L1 の枝も出るので、等号ではなく「断面積は増えない・減りすぎない」
+        assert 0.5 * before ** delta <= area <= 1.05 * before ** delta, (k, before, after, a.radius[0])
 
 
 def test_children_never_thicker_than_parent_and_taper_down():
@@ -531,31 +533,30 @@ def test_generate_places_stem_top_leaves_on_the_surface(monkeypatch):
 
 
 def test_stem_top_leaves_not_on_the_bare_lower_trunk_of_split_trees():
-    """幹分かれの木（ケヤキ）では、分岐前の短い幹は樹冠より下にある。そこには葉を付けない。"""
+    """幹分かれの木（ケヤキ）でも、樹冠より下の幹（枝下）には葉を付けない。"""
     t = gen("keyaki", quality="MEDIUM", season=0.5, trunk_split_count=3, trunk_split_height=0.3, crown_base_ratio=0.5)
     hb = 0.5 * 20.0
-    lower = [a for a in t.skeleton.axes if a.level == 0 and a.pos[-1, 2] < hb]
-    assert lower, "分岐前の幹が樹冠より下で終わる設定のはず"
+    stem = t.skeleton.axes[0]
+    lower = stem.pos[stem.pos[:, 2] < hb - 0.8]
+    assert len(lower) > 5, "枝下の幹があるはず"
     lp = t.leaves.pos[t.leaves.is_leaf]
-    for a in lower:
-        zs = a.pos[:, 2]
-        d = np.min(np.linalg.norm(lp[:, None, :] - a.pos[None, :, :], axis=2), axis=1)
-        low_leaf = lp[:, 2] < hb - 0.5
-        assert not np.any(low_leaf & (d < a.radius.max() * 1.05 + 0.05)), (zs.max(), int(np.sum(low_leaf & (d < 1.0))))
+    d = np.min(np.linalg.norm(lp[:, None, :] - lower[None, :, :], axis=2), axis=1)
+    assert (d < 0.3).sum() == 0, int((d < 0.3).sum())                          # 枝下の幹の近くに葉は無い
 
 
 @pytest.mark.parametrize("sid", ["iroha_momiji", "someiyoshino", "shidareyanagi"])
 def test_no_leaves_on_the_fork_collar_of_a_split_trunk(sid):
-    """幹が低い所で分かれる木（モミジ・ソメイヨシノ・ヤナギ）で、分岐部の幹の肌に葉が直接付いていた（上端は頂部ではない）。"""
+    """幹が低い所で分かれる木（モミジ・ソメイヨシノ・ヤナギ）で、側枝の分岐部の幹の肌に葉が直接付いていた。
+    幹は 1 本の連続した主幹で、先端（頂部）の房だけは付いてよい。"""
     t = gen(sid, quality="MEDIUM", seed=2)
     sk = t.skeleton
     trunk = next(a for a in sk.axes if a.level == 0 and a.parent < 0)
-    assert any(a.level == 0 and a.parent == trunk.id for a in sk.axes), "幹が分かれる設定のはず"
+    jn = sorted({a.parent_node for a in sk.axes if a.level == 0 and a.parent == trunk.id})
+    assert jn, "幹が分かれる設定のはず"
     lp = t.leaves.pos[t.leaves.is_leaf]
-    top = trunk.pos[int(0.8 * trunk.n):]                                  # 分岐部の手前（幹の上端 2 割）
-    r = float(trunk.radius[int(0.8 * trunk.n):].max())
-    d = np.min(np.linalg.norm(lp[:, None, :] - top[None, :, :], axis=2), axis=1)
-    assert not np.any(d < 1.3 * r), int(np.sum(d < 1.3 * r))
+    for k in jn:
+        d = np.linalg.norm(lp - trunk.pos[k], axis=1)
+        assert not np.any(d < 1.3 * float(trunk.radius[k])), (k, int(np.sum(d < 1.3 * float(trunk.radius[k]))))
 
 
 def _leaf_offset_from_branches(t, n=1500):
@@ -1001,18 +1002,19 @@ def test_weeping_willow_keeps_its_low_hanging_twigs():
 
 @pytest.mark.parametrize("sid", ["keyaki", "iroha_momiji", "someiyoshino"])
 def test_forked_trunk_has_no_step_at_the_fork(sid):
-    """幹が分かれる所で、親の幹の平らな上端と、細い子の幹とのあいだに段差ができていた。親の幹の上端は、子の付け根の太さまで滑らかに細くなる。"""
+    """幹が分かれる所に段差ができていた（親の幹の平らな上端から、細い子の幹が 1 点で出ていた）。主幹は 1 本の連続した筒で、
+    側枝が出る所でも、太さは弧長あたりなだらかに細くなる（円錐の段にならない）。"""
     t = gen(sid, quality="MEDIUM", seed=3)
-    kids = {}
-    for a in t.skeleton.axes:
-        if a.level == 0 and a.parent >= 0:
-            kids.setdefault(a.parent, []).append(a.id)
-    assert kids
-    for par, cs in kids.items():
-        rp = ring_radii(axis_rings(t, par)[0]).mean(axis=1)
-        r_child = max(float(ring_radii(axis_rings(t, c)[0]).mean(axis=1)[0]) for c in cs)
-        assert rp[-1] <= 1.08 * r_child, (sid, rp[-1], r_child)                 # 上端は子の付け根と同じ太さ（段差なし）
-        assert rp[-1] < 0.98 * rp[max(0, len(rp) - 8)] or rp[-1] <= r_child     # 手前から滑らかに細くなる
+    stem = t.skeleton.axes[0]
+    nodes = sorted({a.parent_node for a in t.skeleton.axes if a.level == 0 and a.parent >= 0})
+    assert len(nodes) >= 1 and all(a.parent == 0 for a in t.skeleton.axes if a.level == 0 and a.parent >= 0)
+    rp = ring_radii(axis_rings(t, 0)[0]).mean(axis=1)
+    ds = np.linalg.norm(np.diff(stem.pos, axis=0), axis=1)
+    slope = (rp[:-1] - rp[1:]) / np.maximum(ds, 1e-6)                           # 弧長 1 m あたりに細くなる半径 [m]（0.2 ≒ 11°）
+    for k in nodes:
+        lo, hi = max(k - 6, 0), min(k + 8, len(slope))
+        assert slope[lo:hi].max() < 0.2, (sid, k, np.round(slope[lo:hi], 3))
+        assert rp[hi] < rp[lo]                                                  # 分岐の先で細くなる
 
 
 def test_flower_clusters_are_spaced_along_the_twigs_not_a_dense_line():

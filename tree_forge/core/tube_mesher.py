@@ -14,15 +14,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import allometry, cross_section
-from .radius import COLLAR, collar_factor
+from .radius import collar_factor
 from .skeleton import Skeleton
 from .util import normalize, perp_basis, rotate_about
 
 PART_TRUNK, PART_BRANCH, PART_TWIG, PART_LEAF, PART_FLOWER, PART_FRUIT, PART_ROOT = range(7)
 SLOT_BROKEN = 7
-FORK_CONT_DEG = 9.0       # 子の幹が親の幹の向きからこの角度までなら「親の幹の続き」（付け根を膨らませない）。2 倍の角度で全開
-FORK_LEN = 2.5            # 分岐の手前で親の幹を細める長さ（親の半径に対する倍率）
-FORK_MIN_RATIO = 0.98      # 子の付け根が親の上端の半径のこの割合以上なら、細めない
+LIMB_COLLAR = 0.2          # 幹から出る太い幹の、付け根の膨らみ（通常の枝に対する割合）
 BREAK_PAINT_MAX = 0.15     # [m] 折れ口の色を塗る区間の長さの上限
 TWIG_RADIUS = 0.012          # 付け根の半径がこれ未満の枝は「小枝」
 
@@ -67,7 +65,7 @@ def _frames(T: np.ndarray):
     return U, np.cross(T, U)
 
 
-def _group(p, axs, V, dist, dmax, rng, h_root, fork_top=None, collar_w=None):
+def _group(p, axs, V, dist, dmax, rng, h_root):
     A = len(axs)
     n = np.array([a.n for a in axs])
     M = int(n.max())
@@ -91,19 +89,10 @@ def _group(p, axs, V, dist, dmax, rng, h_root, fork_top=None, collar_w=None):
     is_root = np.array([a.parent < 0 for a in axs])
     r0 = rad[:, 0]
     cf = collar_factor(s, r0[:, None])
-    for i, a in enumerate(axs):                                  # 親の幹の続き（ほぼ同じ向きに伸びる子の幹）は付け根を膨らませない
-        w = (collar_w or {}).get(a.id)
-        if w is not None:
-            cf[i] = 1.0 + (cf[i] - 1.0) * w
+    for i, a in enumerate(axs):                                  # 幹から出る太い幹（幹分かれ）は、付け根を膨らませない（太さが幹に近く、膨らむと幹の面から飛び出して縁が見える）
+        if a.level == 0 and a.parent >= 0:
+            cf[i] = 1.0 + (cf[i] - 1.0) * LIMB_COLLAR
     r_eff = np.where(is_root[:, None], rad, rad * cf)
-    for i, a in enumerate(axs):                                  # 幹が分かれる所: 親の幹の上端を、子の付け根の太さまで滑らかに細める（平らな上端の段差を消す）
-        rt = (fork_top or {}).get(a.id)
-        r_end = float(rad[i, last[i]])
-        if rt is None or rt >= FORK_MIN_RATIO * r_end:
-            continue
-        ell = min(max(FORK_LEN * r_end, 0.15), 0.6 * float(L[i]))
-        f = np.clip((s[i] - (L[i] - ell)) / ell, 0.0, 1.0)
-        r_eff[i] *= 1.0 - (1.0 - rt / r_end) * f * f * (3.0 - 2.0 * f)
     for i, a in enumerate(axs):
         if 0 <= a.neck < a.n:
             r_eff[i, a.neck] *= 0.55
@@ -259,27 +248,13 @@ def build_mesh(p, sk: Skeleton, st) -> MeshData:
     dmax = max(float(d[-1]) for d in dist) or 1.0
     h_root = p.root_flare_height * p.height_m
 
-    fork_top: dict[int, float] = {}                              # 幹の分岐: 親の幹の id → 子の付け根の半径（膨らみ込み）の最大
-    collar_w: dict[int, float] = {}                              # 幹の分岐の子: 付け根の膨らみの強さ（0: 親の幹の続き、1: 横へ出ていく幹）
-    for a in sk.axes:
-        if a.level == 0 and a.parent >= 0 and a.radius is not None:
-            par = sk.axes[a.parent]
-            k = min(max(a.parent_node, 1), par.n - 1)
-            t_par = par.pos[k] - par.pos[k - 1]
-            t_ch = a.pos[1] - a.pos[0]
-            cosang = float(np.dot(t_par, t_ch) / max(np.linalg.norm(t_par) * np.linalg.norm(t_ch), 1e-12))
-            ang = math.acos(float(np.clip(cosang, -1.0, 1.0)))
-            w = float(np.clip((ang - math.radians(FORK_CONT_DEG)) / math.radians(FORK_CONT_DEG), 0.0, 1.0))
-            collar_w[a.id] = w
-            fork_top[a.parent] = max(fork_top.get(a.parent, 0.0), float(a.radius[0]) * (1.0 + COLLAR * w))
-
     groups = []
     for lv in range(4):
         axs = [a for a in sk.axes if min(a.level, 3) == lv]
         if axs:
             r_max = max(a.radius[0] for a in axs) * (p.root_flare_scale if lv == 0 else 1.0)
             V = max(3, allometry.ring_verts(p.quality, lv, r_max))
-            groups.append(_group(p, axs, V, dist, dmax, rng, h_root, fork_top, collar_w))
+            groups.append(_group(p, axs, V, dist, dmax, rng, h_root))
 
     cos, fv, fs, uvs, parts, brks = [], [], [], [], [], []
     pas: dict[str, list] = {}

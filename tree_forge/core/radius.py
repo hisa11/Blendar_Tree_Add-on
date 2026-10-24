@@ -53,6 +53,11 @@ def compute_radii(p, sk: Skeleton) -> None:
         L = max(s[-1], 1e-9)
         if ax.parent < 0:
             r = trunk_fn(ax.pos[:, 2])
+            jn = sorted({ch.parent_node for ch in cm.get(ax.id, []) if ch.level == 0 and not ch.removed})
+            if jn:                                              # 幹分かれ: 最初の分岐から先は、枝が出るたびにレオナルド則で細くなる
+                k1 = min(jn[0], ax.n - 2)
+                r[k1 + 1:] = r[k1] * (ax.q[k1 + 1:] / ax.q[k1]) ** inv
+                r = _smooth_drops(r, s, jn)
         else:
             par = sk.axes[ax.parent]
             r_par = par.radius[ax.parent_node]
@@ -66,6 +71,28 @@ def compute_radii(p, sk: Skeleton) -> None:
             # 子は親より太くならない
             r = np.minimum(r, 0.92 * r_par)
         ax.radius = np.maximum(r, r_min)
+
+
+def _smooth_drops(r: np.ndarray, s: np.ndarray, nodes, width: float = 1.5) -> np.ndarray:
+    """枝が出る節の前後で、太さが 1 区間で急に落ちる（円錐の段）のを、短い区間にならす。
+
+    節 k の前後 width × r（弧長。区間の長さが長いときは、前後 1 節ずつ以上）の範囲を、両端の太さのあいだで滑らかにつなぐ。
+    """
+    out = r.copy()
+    n = len(r)
+    for k in nodes:
+        k = min(k, n - 2)
+        seg = float(np.max(np.diff(s[max(k - 1, 0):min(k + 3, n)]))) if n > 2 else 0.0
+        ell = max(width * float(r[k]), 1.2 * seg)
+        a = int(np.searchsorted(s, s[k] - ell, side="right")) - 1
+        b = int(np.searchsorted(s, s[k + 1] + ell, side="left"))
+        a, b = max(a, 0), min(b, n - 1)
+        if b - a < 2:
+            continue
+        f = np.clip((s[a + 1:b] - s[a]) / max(s[b] - s[a], 1e-9), 0.0, 1.0)
+        f = f * f * (3.0 - 2.0 * f)
+        out[a + 1:b] = r[a] + (r[b] - r[a]) * f
+    return out
 
 
 def collar_factor(s: np.ndarray, r0) -> np.ndarray:

@@ -435,7 +435,7 @@ def generate(p, sk: Skeleton, st) -> LeafData:
         # 幹の上部（樹冠の頂部）。幹は _bearing_axes から外れるため、ここで先端寄りだけに付ける。
         # 幹の中心線上に置くと太い部分では樹皮に埋もれるので、半径ぶん外（表面）へずらす
         live = [a for a in sk.axes if not a.removed]
-        forked = {a.parent for a in live if a.level == 0 and a.parent >= 0}       # 先で幹が分かれる幹の上端は、分岐部（頂部ではない）
+        forked = {a.parent for a in live if a.level == 0 and a.parent >= 0 and a.parent_node >= sk.axes[a.parent].n - 1}   # 先端で幹が分かれる幹の上端は、分岐部（頂部ではない）。途中から側枝が出る主幹は頂部を持つ
         tops = [a for a in live if a.level == 0 and not a.dead and a.id not in forked]
         u_top = {"NEEDLE_FASCICLE": 0.93, "NEEDLE_SPIRAL": 0.9, "SCALE_TWIG": 0.9}.get(p.leaf_type, 0.82)   # マツの針の房は細い枝先だけ。針葉樹は幹の肌に付けるのを梢の近くだけに（下は芯の房で埋める）
         if shoots > 0.0:
