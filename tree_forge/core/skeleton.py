@@ -444,9 +444,8 @@ def build(p, st) -> Skeleton:
     fit_dimensions(p, sk)
     clip_to_envelope(p, sk, 1.0)
     # 刈り込みで縮んだ分を取り戻す。許容 4% の刈り込みと合わせて数回で収束する
-    for _ in range(6):                                     # 幹が順に分かれる木は先端が少なく、刈り込みで縮みやすい。収束したら止める
-        h, w = measure(sk)
-        if abs(h / p.height_m - 1.0) < 0.01 and abs(w / p.crown_width_m - 1.0) < 0.01:
+    for it in range(6):                                    # 3 回は従来どおり。幹が順に分かれる木は先端が少なく刈り込みで縮みやすいので、高さが 1% 以上ずれていれば最大 6 回まで
+        if it >= 3 and abs(measure(sk)[0] / p.height_m - 1.0) < 0.01:
             break
         fit_dimensions(p, sk, 0.7, 1.4)
         clip_to_envelope(p, sk, 1.0)
