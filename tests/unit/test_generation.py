@@ -1029,6 +1029,63 @@ def test_forked_trunk_has_no_step_at_the_fork(sid):
         assert rp[hi] < rp[lo]                                                  # 分岐の先で細くなる
 
 
+def _limbs(t):
+    return [a for a in t.skeleton.axes if a.level == 0 and a.parent == 0 and a.n >= 6]
+
+
+def _angle_deg(u, v):
+    return float(np.degrees(np.arccos(np.clip(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)), -1.0, 1.0))))
+
+
+def test_trunk_split_spread_sets_the_limb_angle():
+    """幹分かれの開き（trunk_split_spread_deg）で、大枝が鉛直から開く角度が決まる。-1 は樹冠形ごとの自動（球形 24°）と同じ。"""
+    def mean_tilt(spread):
+        out = []
+        for seed in (1, 2, 3, 4):
+            t = gen("someiyoshino", quality="PREVIEW", seed=seed, trunk_split_spread_deg=spread)
+            for a in _limbs(t):
+                k = a.n // 3
+                out.append(_angle_deg(a.pos[k] - a.pos[0], np.array([0.0, 0.0, 1.0])))
+        return float(np.mean(out))
+    assert mean_tilt(60.0) > mean_tilt(15.0) + 15.0
+    kw = dict(quality="PREVIEW", crown_shape="spherical")
+    assert mesh_hash(gen("someiyoshino", trunk_split_spread_deg=-1.0, **kw)) == mesh_hash(gen("someiyoshino", trunk_split_spread_deg=24.0, **kw))
+
+
+def test_split_limbs_leave_the_stem_along_its_direction_then_curve_out():
+    """大枝が幹から直線の棒として斜めに刺さって見えた。根元は幹とほぼ同じ向きで出て、軸に沿って外向きに曲がる。"""
+    for seed in (1, 2, 3):
+        t = gen("someiyoshino", quality="MEDIUM", seed=seed, trunk_split_spread_deg=50.0, trunk_split_count=4)
+        stem = t.skeleton.axes[0]
+        limbs = _limbs(t)
+        assert limbs
+        for a in limbs:
+            j = a.parent_node
+            tan = stem.pos[j + 1] - stem.pos[j - 1]
+            first = a.pos[1] - a.pos[0]
+            far = a.pos[a.n // 2] - a.pos[0]
+            a1, a2 = _angle_deg(first, tan), _angle_deg(far, tan)
+            assert a1 < 0.75 * a2, (seed, a.id, a1, a2)                                # 根元は幹の向きに近く
+            assert a2 > a1 + 12.0, (seed, a.id, a1, a2)                                # 先は外へ開く
+
+
+def test_split_limbs_stop_at_the_crown_envelope():
+    """大枝が樹冠の外へ細い棒のまま突き出ていた。樹冠の高さの範囲では、大枝もエンベロープ（×1.06）の中で終わる。"""
+    for seed in (1, 2, 3):
+        t = gen("someiyoshino", quality="PREVIEW", seed=seed, trunk_split_spread_deg=60.0)
+        p = t.params
+        hb = p.crown_base_ratio * p.height_m
+        trunk = t.skeleton.axes[0]
+        for a in _limbs(t):
+            P = a.pos[3:]
+            P = P[P[:, 2] >= hb]
+            if len(P) == 0:
+                continue
+            cx, cy = skeleton._center_fn(trunk)(P[:, 2])
+            gap = np.hypot(P[:, 0] - cx, P[:, 1] - cy) - envelope.reach(p, P[:, 2]) * 1.06
+            assert gap.max() < 0.3, (seed, a.id, float(gap.max()))
+
+
 def test_flower_clusters_are_spaced_along_the_twigs_not_a_dense_line():
     """花を枝の線上にびっしり並べると、細い枝ごとに白いソーセージ状に連なって毛虫に見えた。房（3 輪）を枝 1 m あたり少数にして、間に枝が見える。"""
     t = gen("someiyoshino", quality="PREVIEW", season=0.15, seed=2)

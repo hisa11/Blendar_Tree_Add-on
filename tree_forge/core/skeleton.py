@@ -142,6 +142,16 @@ def grow(start, dir0, length, nseg, rng, *, up_pull, droop, wobble, kink, photo,
     return [pos[a, : nseg[a] + 1].copy() for a in range(A)]
 
 
+def _bend_in(pos: np.ndarray, t0: np.ndarray, frac: float = 0.2, k0: float = 0.3) -> np.ndarray:
+    """大枝の根元を、親の向き t0 から外向きへ滑らかに曲げる。幹から直線の棒が斜めに刺さって見えないように、
+    根元では親とほぼ同じ向きで出て、軸に沿って frac の長さで本来の向きになる（以降は動かさない）。"""
+    r = pos - pos[0]
+    s = np.linalg.norm(r, axis=1)
+    u = np.clip(s / max(frac * s[-1], 1e-9), 0.0, 1.0)
+    w = (k0 + (1.0 - k0) * u * u * (3.0 - 2.0 * u))[:, None]
+    return pos[0] + w * r + (1.0 - w) * s[:, None] * t0[None, :]
+
+
 def _horizontal(d: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     h = d.copy()
     h[..., 2] = 0.0
@@ -200,6 +210,8 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
     n = p.trunk_split_count
     base_tilt = {"vase": 30.0, "spherical": 24.0, "ovoid": 20.0, "umbrella": 34.0, "weeping": 26.0,
                  "irregular": 26.0, "columnar": 12.0, "conical": 14.0}[p.crown_shape]
+    if p.trunk_split_spread_deg >= 0.0:
+        base_tilt = float(p.trunk_split_spread_deg)
     az = rng.uniform(0, 2 * math.pi)
     dz = float(np.clip(SPLIT_STEP * H, 0.4, 3.0))                      # 次の分岐までの高さ
     stem = pos
@@ -222,9 +234,10 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
         outs = _horizontal(dirs, np.array([1.0, 0.0, 0.0]))
         nseg_l = np.maximum(allometry.n_segments(lens, 0, p.quality), 10)
         pos_l = grow(np.repeat(start[None], 2, 0), dirs, lens, nseg_l, rng, up_pull=np.full(2, 0.9), droop=np.zeros(2),
-                     wobble=np.full(2, 0.25 * (0.7 + 0.3 * age)), kink=np.full(2, (1 - p.apical_dominance) * 0.15),
+                     wobble=np.full(2, max(p.trunk_wobble, p.l1_wobble) * (0.7 + 0.3 * age)),
+                     kink=np.full(2, (1 - p.apical_dominance) * 0.35),               # 大枝・主幹の続きも、枝（L1）と同じくらいうねって折れる（直線の棒にしない）
                      photo=np.zeros(2), out_dir=outs)
-        sides.append((len(stem) - 1, pos_l[0], outs[0]))
+        sides.append((len(stem) - 1, _bend_in(pos_l[0], t_cur), outs[0]))
         stem = np.vstack([stem, pos_l[1][1:]])                         # 主幹は分岐の節から、そのまま上へ続く
     trunk = sk.add(0, -1, 0, stem, out0[0], phase=rng.random())
     for node, pos_s, out_s in sides:
@@ -348,8 +361,17 @@ def measure(sk: Skeleton) -> tuple[float, float]:
     return float(pts[:, 2].max()), float(0.5 * (np.ptp(pts[:, 0]) + np.ptp(pts[:, 1])))
 
 
+def _fit_height(sk: Skeleton) -> float:
+    """寸法合わせの樹高。幹が分かれる木は主幹の頂部で測る（最高点は、エンベロープで切り戻される枝になって、幹がなかなか目標に届かない）。"""
+    stem = sk.axes[0]
+    if any(a.level == 0 and a.parent >= 0 and not a.removed for a in sk.axes):
+        return float(stem.pos[-1, 2])
+    return measure(sk)[0]
+
+
 def fit_dimensions(p, sk: Skeleton, lo=0.6, hi=1.6) -> None:
     h, w = measure(sk)
+    h = _fit_height(sk)
     sz = min(hi, max(lo, p.height_m / max(h, 1e-6)))
     sxy = min(hi, max(lo, p.crown_width_m / max(w, 1e-6)))
     scale = np.array([sxy, sxy, sz])
@@ -359,9 +381,10 @@ def fit_dimensions(p, sk: Skeleton, lo=0.6, hi=1.6) -> None:
 
 
 def clip_to_envelope(p, sk: Skeleton, tol: float = 1.0) -> None:
-    """エンベロープ（×tol）の外へ出た最初の節で枝を切る。幹・幹分かれの主枝は対象外。"""
+    """エンベロープ（×tol）の外へ出た最初の節で枝を切る。主幹は対象外。幹分かれの大枝は、樹冠の高さの範囲だけ対象（根元は残す）。"""
     cm = sk.children_map()
-    axes = [a for a in sk.axes if not a.removed and a.level != 0]
+    hb = p.crown_base_ratio * p.height_m
+    axes = [a for a in sk.axes if not a.removed and (a.level != 0 or a.parent >= 0)]
     trunk = next((a for a in sk.axes if a.level == 0 and a.parent < 0 and not a.removed), None)
     if axes and trunk is not None:
         # 枝ごとの切り詰めは他の枝の節の位置を動かさないので、全節のエンベロープ超過を最初に一括で求めてよい
@@ -376,9 +399,16 @@ def clip_to_envelope(p, sk: Skeleton, tol: float = 1.0) -> None:
             gap = gap_all[o0:o1]
             out = gap > 1e-9
             out[0] = False
+            limb = a.level == 0
+            if limb:
+                out &= P[:, 2] >= hb
             if out.any():
                 m = int(out.argmax())
-                if m < 2:
+                if limb:
+                    m = max(m, 3)                                       # 大枝は消さず、最低でも根元の数節は残す
+                    if m >= a.n:
+                        continue
+                elif m < 2:
                     sk.remove_subtree(a.id, cm)
                     continue
                 # 外へ出る区間は境界との交点で切り、枝先が境界まで届くようにする
@@ -448,7 +478,7 @@ def build(p, st) -> Skeleton:
     clip_to_envelope(p, sk, 1.0)
     # 刈り込みで縮んだ分を取り戻す。許容 4% の刈り込みと合わせて数回で収束する
     for it in range(6):                                    # 3 回は従来どおり。幹が順に分かれる木は先端が少なく刈り込みで縮みやすいので、高さが 1% 以上ずれていれば最大 6 回まで
-        if it >= 3 and abs(measure(sk)[0] / p.height_m - 1.0) < 0.01:
+        if it >= 3 and abs(_fit_height(sk) / p.height_m - 1.0) < 0.01:
             break
         fit_dimensions(p, sk, 0.7, 1.4)
         clip_to_envelope(p, sk, 1.0)

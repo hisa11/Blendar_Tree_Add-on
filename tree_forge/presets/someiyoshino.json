@@ -16,8 +16,8 @@
     "apical_dominance": 0.3,
     "gravitropism": 0.1,
     "phototropism": 0.2,
-    "trunk_split_count": 3,
-    "trunk_split_height": 0.25
+    "trunk_split_count": 4,
+    "trunk_split_height": 0.22
   },
   "levels": [
     {
@@ -91,6 +91,7 @@
     "leaves.length_cm": "M:最大12.7cm"
   },
   "trunk": {
-    "trunk_wobble": 0.25
+    "trunk_wobble": 0.35,
+    "trunk_split_spread_deg": 45.0
   }
 }

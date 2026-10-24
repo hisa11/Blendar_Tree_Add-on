@@ -111,7 +111,7 @@ PRESETS = [
        {"type": "smooth_lenticel", "displace_mm": 3, "color": [0.17, 0.13, 0.11], "branch_color": [0.15, 0.11, 0.09]},
        {"height_m": "M:MBG 9-12m", "dbh_cm": "E", "crown_width_m": "M:MBG 9-12m", "growth": "E", "levels": "E",
         "leaves.length_cm": "M:最大12.7cm"},
-       split=3, split_h=0.25, trunk={"trunk_wobble": 0.25}),
+       split=4, split_h=0.22, trunk={"trunk_wobble": 0.35, "trunk_split_spread_deg": 45.0}),      # 低い所で 4 本の大枝に分かれ、横へ大きく広がる（桜の樹形）
     sp("ichou", "イチョウ", "Ginkgo biloba", 20, 70, 10.5, "ovoid", 0.20, 0.8, 0.4,
        [lv(50, 0.05, 3.0, 1.0, wobble=0.2), lv(55, 0.10, 4.0, 0.45), lv(55, 0.10, 6.5, 0.40)],
        {"type": "FAN", "length_cm": 8, "per_m": 28, "cluster": 3, "scatter": 0.8, "geom": "CUTOUT_MESH",

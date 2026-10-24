@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from tree_forge import preset_io, schema  # noqa: E402
-from tree_forge.core import allometry, envelope, pipeline, skeleton  # noqa: E402
+from tree_forge.core import allometry, envelope, pipeline, skeleton, tube_mesher  # noqa: E402
 
 SIZE_SCALES = (0.7, 1.0, 1.4)
 QUALITIES = ("PREVIEW", "MEDIUM", "HERO")
@@ -208,8 +208,12 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
     m["broken_axes"] = n_broken
     if p.broken_branch_ratio * p.age_factor > 0.03 and len(ax_all) >= 40 and n_broken == 0:
         f.warn("BROKEN", "折れた枝が 1 本も無い（折れ枝の割合 > 0）")
-    if n_broken and int((t.mesh.face_attrs["tree_break"] > 0).sum()) == 0:
-        f.fail("BROKEN", "折れ口の軸があるのに tree_break の面が無い")
+    # 折れ口の色は短い区間（BREAK_PAINT_MAX 以下）だけに塗る（長い区間は針金状の淡い線になる）。塗れる折れ口があるのに面が無いときだけ FAIL
+    seg = lambda a, i: float(np.linalg.norm(a.pos[i + 1] - a.pos[i]))
+    paintable = any((a.broken and a.n >= 2 and seg(a, a.n - 2) <= tube_mesher.BREAK_PAINT_MAX)
+                    or (0 <= a.neck < a.n - 1 and seg(a, a.neck) <= tube_mesher.BREAK_PAINT_MAX) for a in ax_all)
+    if paintable and int((t.mesh.face_attrs["tree_break"] > 0).sum()) == 0:
+        f.fail("BROKEN", "塗れる折れ口の軸があるのに tree_break の面が無い")
 
     # --- 骨格 ---
     center = skeleton._center_fn(trunk)
