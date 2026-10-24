@@ -137,7 +137,7 @@ def _build() -> list[Param]:
         P("trunk_lean_deg", "float", 2.0, 0.0, 30.0, "°", "傾き", "主幹を鉛直から傾ける角度（傾く向きは乱数）", "trunk"),
         P("trunk_wobble", "float", 0.15, 0.0, 1.0, "", "曲がり", "主幹のうねり（曲がり）の大きさ。樹齢感で増減", "trunk"),
         P("trunk_split_height", "float", 0.35, 0.05, 0.95, "", "幹分かれ高", "幹分かれ高 ÷ 樹高", "trunk"),
-        P("trunk_split_count", "int", 1, 1, 5, "", "幹分かれ本数", "2以上で指定高さで主幹が分かれる", "trunk"),
+        P("trunk_split_count", "int", 1, 1, 5, "", "幹分かれ本数", "2以上で、指定した高さから幹が順に分かれる（太い幹から、少し細い幹が別々の高さで出ていき、残った幹も先へ行くほど細くなる）", "trunk"),
         P("root_flare_height", "float", 0.05, 0.0, 0.15, "", "根張り高", "根張り高 ÷ 樹高", "trunk"),
         P("root_flare_scale", "float", 1.4, 1.0, 2.5, "", "根張り倍率", "根元半径の倍率", "trunk"),
         P("root_count", "int", 6, 0, 12, "", "根張り数", "根張りの峰の数", "trunk"),

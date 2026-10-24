@@ -73,15 +73,19 @@ def test_determinism_and_stream_independence():
 # --- レオナルドの規則 ---------------------------------------------------------
 @pytest.mark.parametrize("delta", [1.8, 2.0, 2.5, 3.0])
 def test_leonardo_at_trunk_fork(delta):
-    """幹分かれ: 分かれる前の幹の d^Δ = 分かれた主枝の d^Δ の和（誤差 1% 以内）。"""
+    """幹分かれ: 各分岐点で、分かれる前の幹の d^Δ = 分かれた幹の d^Δ の和（誤差 1% 以内）。"""
     p = species_params("keyaki", quality="PREVIEW", leonardo_exponent=delta, trunk_split_count=3)
     t = pipeline.generate(p)
-    trunk = t.skeleton.axes[0]
-    leaders = [a for a in t.skeleton.axes if a.level == 0 and a.parent == 0]
-    assert len(leaders) == 3
-    lhs = trunk.radius[-1] ** delta
-    rhs = sum(a.radius[0] ** delta for a in leaders)
-    assert rhs == pytest.approx(lhs, rel=0.01)
+    axes = t.skeleton.axes
+    forks = {}
+    for a in axes:
+        if a.level == 0 and a.parent >= 0:
+            forks.setdefault((a.parent, a.parent_node), []).append(a)
+    assert len(forks) == 2 and all(len(v) == 2 for v in forks.values())          # 3 本に分かれるなら、2 回の分岐（順に細い幹が出ていく）
+    for (par, node), kids in forks.items():
+        lhs = axes[par].radius[node] ** delta
+        rhs = sum(a.radius[0] ** delta for a in kids)
+        assert rhs == pytest.approx(lhs, rel=0.01), (par, node)
 
 
 def test_children_never_thicker_than_parent_and_taper_down():
@@ -812,7 +816,7 @@ def test_no_leaf_lines_along_l2_in_a_budget_limited_hero_tree(monkeypatch):
         return orig(axes, *a, **kw)
 
     monkeypatch.setattr(leaf_points, "_place", spy)
-    t = gen("kusunoki", quality="HERO", seed=3, height_m=28.0, crown_width_m=35.0, dbh_cm=168.0)
+    t = gen("kusunoki", quality="HERO", seed=3, height_m=32.0, crown_width_m=40.0, dbh_cm=190.0)
     n2 = sum(1 for a in t.skeleton.axes if a.level == 2 and not a.dead)
     n3 = sum(1 for a in t.skeleton.axes if a.level == 3 and not a.dead)
     assert n3 < 0.5 * n2, (n2, n3)                                            # この木は L3 がほとんど無い

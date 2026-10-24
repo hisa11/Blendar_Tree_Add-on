@@ -18,6 +18,7 @@ from .util import Z, normalize, perp_basis
 K_WOBBLE = 2.5
 K_UP = 1.8
 K_DROOP = 3.0
+SPLIT_STEP = 0.07      # 幹分かれで、次の分岐までの高さ（樹高比）
 K_PHOTO = 1.0
 
 
@@ -193,26 +194,38 @@ def _build_stems(p, rng, sk: Skeleton) -> None:
     if not split:
         return
 
+    # 幹分かれ: 1 点で一気に n 本に分かれると、平らな上端と細い子の幹とのあいだに段差ができる。
+    # 実物は、太い幹から少し細い幹がいろいろな向きに、少しずつ違う高さで出ていき、残った幹も先へ行くほど細くなる。
+    # 幹が側枝（太い幹）を 1 本出し、残りの幹が少し上でまた 1 本出す、を繰り返す（最後の残りの幹が n 本目）。
+    # 1 回の分岐で減る太さが小さくなり、レオナルド則（各分岐点の子の断面積の和 = 親）はそのまま成り立つ。
     n = p.trunk_split_count
-    top = trunk.pos[-1]
     base_tilt = {"vase": 30.0, "spherical": 24.0, "ovoid": 20.0, "umbrella": 34.0, "weeping": 26.0,
                  "irregular": 26.0, "columnar": 12.0, "conical": 14.0}[p.crown_shape]
-    az0 = rng.uniform(0, 2 * math.pi)
-    az_i = az0 + (np.arange(n) + rng.uniform(-0.2, 0.2, n)) * (2 * math.pi / n)
-    tilt = np.radians(base_tilt * rng.uniform(0.7, 1.2, n))
-    t_end = normalize(trunk.pos[-1] - trunk.pos[-2])
-    e1, e2 = perp_basis(t_end)
-    dirs = (np.cos(tilt)[:, None] * t_end + np.sin(tilt)[:, None] *
-            (np.cos(az_i)[:, None] * e1 + np.sin(az_i)[:, None] * e2))
-    lens = (H - top[2]) / np.maximum(np.cos(tilt), 0.5) * rng.uniform(0.92, 1.06, n)
-    lens = np.maximum(lens, 0.5)
-    nseg_l = np.maximum(allometry.n_segments(lens, 0, p.quality), 10)
-    outs = _horizontal(dirs, np.array([1.0, 0.0, 0.0]))
-    pos_l = grow(np.repeat(top[None], n, 0), dirs, lens, nseg_l, rng, up_pull=np.full(n, 0.9), droop=np.zeros(n),
-                 wobble=np.full(n, 0.25 * (0.7 + 0.3 * age)), kink=np.full(n, (1 - p.apical_dominance) * 0.15),
-                 photo=np.zeros(n), out_dir=outs)
-    for i in range(n):
-        sk.add(0, trunk.id, trunk.n - 1, pos_l[i], outs[i], phase=rng.random())
+    az = rng.uniform(0, 2 * math.pi)
+    dz = float(np.clip(SPLIT_STEP * H, 0.4, 3.0))                      # 次の分岐までの高さ
+    cur = trunk
+    for j in range(n - 1):
+        start = cur.pos[-1]
+        t_cur = normalize(cur.pos[-1] - cur.pos[-2])
+        e1, e2 = perp_basis(t_cur)
+        az += 2.399963 + rng.normal(0.0, 0.25)                         # 黄金角ずつ回して、いろいろな向きに出す
+        tilt_s = math.radians(base_tilt * rng.uniform(0.9, 1.4))       # 出ていく幹
+        tilt_c = math.radians(base_tilt * rng.uniform(0.25, 0.5))      # 残る幹は、出ていく幹と反対へ少し傾く
+        a_s = np.cos(az) * e1 + np.sin(az) * e2
+        d_s = np.cos(tilt_s) * t_cur + np.sin(tilt_s) * a_s
+        d_c = np.cos(tilt_c) * t_cur - np.sin(tilt_c) * a_s
+        last = j == n - 2
+        len_s = max((H - start[2]) / max(math.cos(tilt_s), 0.5) * rng.uniform(0.92, 1.06), 0.5)
+        len_c = max(((H - start[2]) if last else dz * rng.uniform(0.8, 1.4)) / max(math.cos(tilt_c), 0.5)
+                    * (rng.uniform(0.95, 1.05) if last else 1.0), 0.4)
+        dirs, lens = np.stack([d_s, d_c]), np.array([len_s, len_c])
+        outs = _horizontal(dirs, np.array([1.0, 0.0, 0.0]))
+        nseg_l = np.maximum(allometry.n_segments(lens, 0, p.quality), 10)
+        pos_l = grow(np.repeat(start[None], 2, 0), dirs, lens, nseg_l, rng, up_pull=np.full(2, 0.9), droop=np.zeros(2),
+                     wobble=np.full(2, 0.25 * (0.7 + 0.3 * age)), kink=np.full(2, (1 - p.apical_dominance) * 0.15),
+                     photo=np.zeros(2), out_dir=outs)
+        side = sk.add(0, cur.id, cur.n - 1, pos_l[0], outs[0], phase=rng.random())
+        cur = sk.add(0, cur.id, cur.n - 1, pos_l[1], outs[1], phase=rng.random())
 
 
 # --------------------------------------------------------------------------------------
@@ -431,7 +444,10 @@ def build(p, st) -> Skeleton:
     fit_dimensions(p, sk)
     clip_to_envelope(p, sk, 1.0)
     # 刈り込みで縮んだ分を取り戻す。許容 4% の刈り込みと合わせて数回で収束する
-    for _ in range(3):
+    for _ in range(6):                                     # 幹が順に分かれる木は先端が少なく、刈り込みで縮みやすい。収束したら止める
+        h, w = measure(sk)
+        if abs(h / p.height_m - 1.0) < 0.01 and abs(w / p.crown_width_m - 1.0) < 0.01:
+            break
         fit_dimensions(p, sk, 0.7, 1.4)
         clip_to_envelope(p, sk, 1.0)
     return sk
