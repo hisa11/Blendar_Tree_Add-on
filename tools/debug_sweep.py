@@ -172,6 +172,9 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
 
     # 指定の太さは根張りの膨らみを含まない（根張りの範囲では幹はそれより太い）。胸高 1.3 m が根張りの中なら、根張りの上で測る
     z_chk = max(allometry.BREAST_HEIGHT_M, 1.15 * p.root_flare_height * p.height_m)
+    # 幹が分かれる木は、最初の分岐より上は設計の太さ曲線ではなく、レオナルド則で枝に分配された太さになる。胸高が分岐より上なら、分岐の手前で測る
+    k_fork = min((a.parent_node for a in t.skeleton.axes if a.level == 0 and a.parent == 0 and not a.removed), default=len(z_nodes) - 1)
+    z_chk = min(z_chk, 0.8 * float(z_nodes[k_fork]))
     d_bh, z_bh = mean_diameter_at(z_chk)
     want = float(fn(z_bh)) * 200.0
     m["dbh_mesh"], m["dbh_want"] = d_bh, want
@@ -180,7 +183,7 @@ def check_core(p, t, q, dt, f: Findings) -> dict:
     elif abs(d_bh / want - 1) > 0.06:
         f.warn("TRUNK", f"幹の太さ(z={z_bh:.2f} m) がメッシュと設計で {(d_bh / want - 1) * 100:+.1f}%")
     for frac in (0.2, 0.5, 0.8):
-        z_t = frac * float(z_nodes[-1])
+        z_t = frac * float(z_nodes[k_fork])
         d_m, zz = mean_diameter_at(z_t)
         w_ = float(fn(zz)) * 200.0
         if abs(d_m / w_ - 1) > 0.12:

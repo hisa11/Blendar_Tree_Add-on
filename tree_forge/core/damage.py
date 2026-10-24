@@ -161,6 +161,17 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             sk.truncate(trunk, k + 1, cm)
             trunk.broken = True
 
+    # 樹高を決める最高点を含む枝（とその親）は折らない。折れると樹高が乱数しだいで目標から数 % 下がる
+    live = [a for a in sk.axes if not a.removed]
+    keep = set()
+    if live:
+        a = max(live, key=lambda q: float(q.pos[:, 2].max()))
+        while True:
+            keep.add(a.id)
+            if a.parent < 0:
+                break
+            a = sk.axes[a.parent]
+
     base = p.broken_branch_ratio * p.age_factor
     if base > 0.0:
         for ax in list(sk.axes):
@@ -171,6 +182,8 @@ def apply_damage(p, sk: Skeleton, st) -> None:
             b = rng.uniform(p.broken_pos_min, max(p.broken_pos_max, p.broken_pos_min))
             kb = int(np.clip(round(b * (ax.n - 1)), 2, ax.n - 2))
             hang = ax.level <= 2 and rng.random() < p.broken_hang_ratio
+            if ax.id in keep:
+                continue
             if hang and ax.radius is not None and ax.radius[kb] < HANG_MIN_RADIUS:
                 hang = False
             if hang:

@@ -207,6 +207,18 @@ def test_broken_branches_are_truncated_with_jagged_cut_faces():
     assert l1 and np.mean([a.radius[-1] / a.radius[0] > 0.2 for a in l1]) > 0.8
 
 
+def test_damage_keeps_the_branch_that_sets_the_tree_height():
+    """折れ枝の乱数しだいで、樹高を決める最高点の枝が折れ、樹高が目標から数 % 下がることがあった。最高点を含む枝は折らない。"""
+    for seed in (1329, 5, 17, 42):
+        p = species_params("quercus_robur", quality="MEDIUM", seed=seed, broken_branch_ratio=0.6, broken_hang_ratio=0.5)
+        st = rng.make_streams(p.seed)
+        sk = skeleton.build(p, st)
+        radius.compute_radii(p, sk)
+        h0 = skeleton.measure(sk)[0]
+        damage.apply_damage(p, sk, st)
+        assert skeleton.measure(sk)[0] == pytest.approx(h0, abs=1e-9), seed
+
+
 def test_damage_removes_everything_beyond_the_break():
     """損傷モジュールを直接呼び、折れた先（節・子孫）が消えることを確かめる（予算の間引きを混ぜない）。"""
     p = species_params("keyaki", quality="MEDIUM", broken_branch_ratio=0.4, broken_hang_ratio=0.0,
